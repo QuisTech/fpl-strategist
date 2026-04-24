@@ -1,5 +1,4 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-// @ts-ignore
 import solver from "javascript-lp-solver";
 import { fetchFPLData, calculatePlayerScore, getPositionName, getNextFixtures } from '../fpl-logic';
 import { ScoredPlayer, RecommendationResponse } from '../src/types';

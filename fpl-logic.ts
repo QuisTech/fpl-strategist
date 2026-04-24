@@ -1,6 +1,4 @@
 import axios from "axios";
-// @ts-ignore
-import solver from "javascript-lp-solver";
 import { FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, RecommendationResponse } from "./src/types";
 
 const FPL_BASE_URL = "https://fantasy.premierleague.com/api";

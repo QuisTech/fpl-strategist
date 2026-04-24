@@ -1,21 +1,14 @@
-import express from "express";
-import { createServer as createViteServer } from "vite";
-import path from "path";
+import { VercelRequest, VercelResponse } from '@vercel/node';
 // @ts-ignore
 import solver from "javascript-lp-solver";
-import { fetchFPLData, calculatePlayerScore, getPositionName, getNextFixtures } from "./fpl-logic";
-import { ScoredPlayer, RecommendationResponse } from "./src/types";
+import { fetchFPLData, calculatePlayerScore, getPositionName, getNextFixtures } from '../fpl-logic';
+import { ScoredPlayer, RecommendationResponse } from '../src/types';
 
-const app = express();
-const PORT = 3000;
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Simple routing based on URL
+  const { url } = req;
 
-async function startServer() {
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa",
-  });
-
-  app.get("/api/recommendations", async (req, res) => {
+  if (url?.includes('/api/recommendations')) {
     try {
       const riskMode = (req.query.riskMode as 'safe' | 'aggressive') || 'safe';
       const data = await fetchFPLData();
@@ -72,7 +65,7 @@ async function startServer() {
       const solution = solver.Solve(model);
       const squad = availablePlayers.filter(p => solution[`player_${p.id}`] === 1);
 
-      // Starting XI Selection Logic
+      // Starting XI Selection
       const gkps = squad.filter(p => p.position === "GKP").sort((a, b) => b.score - a.score);
       const startingXI: ScoredPlayer[] = [gkps[0]];
       const bench: ScoredPlayer[] = [gkps[1]];
@@ -132,18 +125,14 @@ async function startServer() {
         expectedPoints: startingXI.reduce((acc, p) => acc + p.score, 0)
       };
 
-      res.json(response);
+      res.status(200).json(response);
     } catch (error) {
-      console.error(error);
       res.status(500).json({ error: "Internal server error" });
     }
-  });
-
-  app.use(vite.middlewares);
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  } else if (url?.includes('/api/debug')) {
+    const data = await fetchFPLData();
+    res.status(200).json({ nextEventId: data?.nextEventId });
+  } else {
+    res.status(404).json({ error: "Not found" });
+  }
 }
-
-startServer();

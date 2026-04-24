@@ -18,40 +18,73 @@ const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
 export async function fetchFPLData() {
   if (cachedData && Date.now() - cachedData.lastUpdated < CACHE_TTL) {
+    console.log('[FPL] Returning cached data');
     return cachedData;
   }
 
-  const config = {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
-      'Accept-Language': 'en-US,en;q=0.9',
+  // Multiple User-Agent strings to try if FPL API blocks one
+  const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/118.0',
+  ];
+
+  let lastError: any = null;
+
+  for (const ua of userAgents) {
+    try {
+      console.log(`[FPL] Attempting fetch with UA: ${ua.substring(0, 30)}...`);
+
+      const config = {
+        headers: {
+          'User-Agent': ua,
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+        timeout: 15000,
+      };
+
+      const [staticResponse, fixturesResponse] = await Promise.all([
+        axios.get(`${FPL_BASE_URL}/bootstrap-static/`, config),
+        axios.get(`${FPL_BASE_URL}/fixtures/`, config),
+      ]);
+
+      console.log(`[FPL] Successfully fetched: ${staticResponse.status}, ${fixturesResponse.status}`);
+
+      const now = new Date();
+      const events = staticResponse.data.events;
+      const nextEvent = events.find((e: any) => new Date(e.deadline_time) > now) || 
+                        events.find((e: any) => e.is_next) || 
+                        events.find((e: any) => e.is_current) || 
+                        { id: 1 };
+      
+      const nextEventId = nextEvent.id;
+
+      cachedData = {
+        players: staticResponse.data.elements,
+        teams: staticResponse.data.teams,
+        fixtures: fixturesResponse.data,
+        nextEventId,
+        lastUpdated: Date.now(),
+      };
+
+      return cachedData;
+    } catch (err: any) {
+      lastError = err;
+      console.error(`[FPL] Fetch failed with UA ${ua.substring(0, 30)}:`, err?.message || err);
+      if (err?.response) {
+        console.error(`[FPL] Status: ${err.response.status}, Data:`, JSON.stringify(err.response.data)?.substring(0, 200));
+      }
+      // Try next UA
+      continue;
     }
-  };
+  }
 
-  const [staticResponse, fixturesResponse] = await Promise.all([
-    axios.get(`${FPL_BASE_URL}/bootstrap-static/`, config),
-    axios.get(`${FPL_BASE_URL}/fixtures/`, config),
-  ]);
-
-  const now = new Date();
-  const events = staticResponse.data.events;
-  const nextEvent = events.find((e: any) => new Date(e.deadline_time) > now) || 
-                    events.find((e: any) => e.is_next) || 
-                    events.find((e: any) => e.is_current) || 
-                    { id: 1 };
-  
-  const nextEventId = nextEvent.id;
-
-  cachedData = {
-    players: staticResponse.data.elements,
-    teams: staticResponse.data.teams,
-    fixtures: fixturesResponse.data,
-    nextEventId,
-    lastUpdated: Date.now(),
-  };
-
-  return cachedData;
+  console.error('[FPL] All fetch attempts failed. Last error:', lastError?.message);
+  return null;
 }
 
 export function calculatePlayerScore(player: FPLPlayer, teams: FPLTeam[], fixtures: FPLFixture[], riskMode: 'safe' | 'aggressive', nextEventId: number) {

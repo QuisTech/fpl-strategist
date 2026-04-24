@@ -5,14 +5,26 @@ import { fetchFPLData, calculatePlayerScore, getPositionName, getNextFixtures } 
 import { ScoredPlayer, RecommendationResponse } from '../src/types';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Add CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
   // Simple routing based on URL
   const { url } = req;
 
   if (url?.includes('/api/recommendations')) {
     try {
+      console.log('[API] Starting recommendations request...');
       const riskMode = (req.query.riskMode as 'safe' | 'aggressive') || 'safe';
+      
+      console.log('[API] Fetching FPL data...');
       const data = await fetchFPLData();
-      if (!data) return res.status(500).json({ error: "Failed to fetch data" });
+      if (!data) {
+        console.error('[API] fetchFPLData returned null');
+        return res.status(500).json({ error: "Failed to fetch FPL data from Premier League API" });
+      }
+      console.log(`[API] Got data: ${data.players.length} players, ${data.teams.length} teams, nextEvent=${data.nextEventId}`);
 
       const scoredPlayers: ScoredPlayer[] = data.players.map(p => {
         const team = data.teams.find(t => t.id === p.team);
@@ -28,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       const availablePlayers = scoredPlayers.filter(p => p.status !== 'u' && p.status !== 'n');
+      console.log(`[API] Available players: ${availablePlayers.length}`);
 
       const model = {
         optimize: "score",
@@ -62,8 +75,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         model.ints[varName] = 1;
       });
 
+      console.log('[API] Running LP solver...');
       const solution = solver.Solve(model);
       const squad = availablePlayers.filter(p => solution[`player_${p.id}`] === 1);
+      console.log(`[API] Squad selected: ${squad.length} players`);
 
       // Starting XI Selection
       const gkps = squad.filter(p => p.position === "GKP").sort((a, b) => b.score - a.score);
@@ -125,13 +140,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         expectedPoints: startingXI.reduce((acc, p) => acc + p.score, 0)
       };
 
+      console.log('[API] Sending response successfully');
       res.status(200).json(response);
-    } catch (error) {
-      res.status(500).json({ error: "Internal server error" });
+    } catch (error: any) {
+      console.error('[API] Error in /api/recommendations:', error?.message || error);
+      console.error('[API] Stack:', error?.stack);
+      res.status(500).json({ 
+        error: "Internal server error", 
+        message: error?.message || String(error),
+        stack: process.env.NODE_ENV !== 'production' ? error?.stack : undefined
+      });
     }
   } else if (url?.includes('/api/debug')) {
-    const data = await fetchFPLData();
-    res.status(200).json({ nextEventId: data?.nextEventId });
+    // Enhanced diagnostics endpoint
+    const diagnostics: any = {
+      timestamp: new Date().toISOString(),
+      node_version: process.version,
+      env: process.env.NODE_ENV,
+      checks: {}
+    };
+
+    // Check solver loads
+    try {
+      const testModel = {
+        optimize: "x", opType: "max" as const,
+        constraints: { c: { max: 10 } },
+        variables: { x: { x: 1, c: 1 } },
+      };
+      const result = solver.Solve(testModel);
+      diagnostics.checks.solver = { ok: true, result };
+    } catch (e: any) {
+      diagnostics.checks.solver = { ok: false, error: e.message };
+    }
+
+    // Check FPL API reachability
+    try {
+      const data = await fetchFPLData();
+      diagnostics.checks.fpl_api = { 
+        ok: !!data, 
+        players: data?.players?.length,
+        teams: data?.teams?.length,
+        nextEventId: data?.nextEventId 
+      };
+    } catch (e: any) {
+      diagnostics.checks.fpl_api = { ok: false, error: e.message };
+    }
+
+    res.status(200).json(diagnostics);
   } else {
     res.status(404).json({ error: "Not found" });
   }

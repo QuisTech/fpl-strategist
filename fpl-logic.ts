@@ -90,8 +90,10 @@ export function calculatePlayerScore(player: FPLPlayer, teams: FPLTeam[], fixtur
   const formWeight = 0.3;
   const ictWeight = 0.2;
 
-  const xG = parseFloat(player.expected_goals) || 0;
-  const xA = parseFloat(player.expected_assists) || 0;
+  // Normalize season-cumulative stats to per-90 rates
+  const gamesPlayed = Math.max(player.minutes / 90, 1);
+  const xG = (parseFloat(player.expected_goals) || 0) / gamesPlayed;
+  const xA = (parseFloat(player.expected_assists) || 0) / gamesPlayed;
   
   let attackingPotential = 0;
   if (player.element_type === 4) attackingPotential = (xG * 4) + (xA * 3);
@@ -99,7 +101,7 @@ export function calculatePlayerScore(player: FPLPlayer, teams: FPLTeam[], fixtur
   else attackingPotential = (xG * 6) + (xA * 3);
 
   const form = parseFloat(player.form) || 0;
-  const ict = (parseFloat(player.ict_index) || 0) / 10;
+  const ict = ((parseFloat(player.ict_index) || 0) / gamesPlayed) / 10;
 
   const playerTeamId = player.team;
   const nextGwFixtures = fixtures.filter(f => f.event === nextEventId && (f.team_h === playerTeamId || f.team_a === playerTeamId));

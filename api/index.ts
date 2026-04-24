@@ -11,13 +11,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Dynamic imports to catch module loading errors
   let solver: any;
   let fplLogic: any;
-  let types: any;
 
   try {
     const solverModule = await import("javascript-lp-solver");
     solver = solverModule.default || solverModule;
-    fplLogic = await import('../fpl-logic');
-    types = await import('../src/types');
+    fplLogic = await import('./fpl-logic');
   } catch (initError: any) {
     console.error('[INIT] Module loading failed:', initError?.message, initError?.stack);
     return res.status(500).json({ 

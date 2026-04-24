@@ -1,7 +1,4 @@
-import { VercelRequest, VercelResponse } from '@vercel/node';
-import solver from "javascript-lp-solver";
-import { fetchFPLData, calculatePlayerScore, getPositionName, getNextFixtures } from '../fpl-logic';
-import { ScoredPlayer, RecommendationResponse } from '../src/types';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Add CORS headers
@@ -9,8 +6,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // Simple routing based on URL
   const { url } = req;
+
+  // Dynamic imports to catch module loading errors
+  let solver: any;
+  let fplLogic: any;
+  let types: any;
+
+  try {
+    const solverModule = await import("javascript-lp-solver");
+    solver = solverModule.default || solverModule;
+    fplLogic = await import('../fpl-logic');
+    types = await import('../src/types');
+  } catch (initError: any) {
+    console.error('[INIT] Module loading failed:', initError?.message, initError?.stack);
+    return res.status(500).json({ 
+      error: "Module initialization failed", 
+      message: initError?.message,
+      stack: initError?.stack
+    });
+  }
+
+  const { fetchFPLData, calculatePlayerScore, getPositionName, getNextFixtures } = fplLogic;
 
   if (url?.includes('/api/recommendations')) {
     try {
@@ -25,8 +42,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       console.log(`[API] Got data: ${data.players.length} players, ${data.teams.length} teams, nextEvent=${data.nextEventId}`);
 
-      const scoredPlayers: ScoredPlayer[] = data.players.map(p => {
-        const team = data.teams.find(t => t.id === p.team);
+      const scoredPlayers = data.players.map((p: any) => {
+        const team = data.teams.find((t: any) => t.id === p.team);
         return {
           ...p,
           score: calculatePlayerScore(p, data.teams, data.fixtures, riskMode, data.nextEventId),
@@ -38,12 +55,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
       });
 
-      const availablePlayers = scoredPlayers.filter(p => p.status !== 'u' && p.status !== 'n');
+      const availablePlayers = scoredPlayers.filter((p: any) => p.status !== 'u' && p.status !== 'n');
       console.log(`[API] Available players: ${availablePlayers.length}`);
 
-      const model = {
+      const model: any = {
         optimize: "score",
-        opType: "max" as const,
+        opType: "max",
         constraints: {
           cost: { max: 1000 },
           total: { equal: 15 },
@@ -52,15 +69,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           mid: { equal: 5 },
           fwd: { equal: 3 },
         },
-        variables: {} as any,
-        ints: {} as any,
+        variables: {},
+        ints: {},
       };
 
-      data.teams.forEach(t => {
-        (model.constraints as any)[`team_${t.id}`] = { max: 3 };
+      data.teams.forEach((t: any) => {
+        model.constraints[`team_${t.id}`] = { max: 3 };
       });
 
-      availablePlayers.forEach(p => {
+      availablePlayers.forEach((p: any) => {
         const varName = `player_${p.id}`;
         model.variables[varName] = {
           score: p.score,
@@ -70,27 +87,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           [`team_${p.team}`]: 1,
           [varName]: 1,
         };
-        (model.constraints as any)[varName] = { max: 1 };
+        model.constraints[varName] = { max: 1 };
         model.ints[varName] = 1;
       });
 
       console.log('[API] Running LP solver...');
       const solution = solver.Solve(model);
-      const squad = availablePlayers.filter(p => solution[`player_${p.id}`] === 1);
+      const squad = availablePlayers.filter((p: any) => solution[`player_${p.id}`] === 1);
       console.log(`[API] Squad selected: ${squad.length} players`);
 
       // Starting XI Selection
-      const gkps = squad.filter(p => p.position === "GKP").sort((a, b) => b.score - a.score);
-      const startingXI: ScoredPlayer[] = [gkps[0]];
-      const bench: ScoredPlayer[] = [gkps[1]];
-      const outfielders = squad.filter(p => p.position !== "GKP").sort((a, b) => b.score - a.score);
+      const gkps = squad.filter((p: any) => p.position === "GKP").sort((a: any, b: any) => b.score - a.score);
+      const startingXI: any[] = [gkps[0]];
+      const bench: any[] = [gkps[1]];
+      const outfielders = squad.filter((p: any) => p.position !== "GKP").sort((a: any, b: any) => b.score - a.score);
       
-      const tempStartingOutfield: ScoredPlayer[] = [];
-      const tempBenchOutfield: ScoredPlayer[] = [];
+      const tempStartingOutfield: any[] = [];
+      const tempBenchOutfield: any[] = [];
 
-      const defs = outfielders.filter(p => p.position === "DEF");
-      const mids = outfielders.filter(p => p.position === "MID");
-      const fwds = outfielders.filter(p => p.position === "FWD");
+      const defs = outfielders.filter((p: any) => p.position === "DEF");
+      const mids = outfielders.filter((p: any) => p.position === "MID");
+      const fwds = outfielders.filter((p: any) => p.position === "FWD");
 
       tempStartingOutfield.push(...defs.slice(0, 3));
       tempStartingOutfield.push(...mids.slice(0, 2));
@@ -100,14 +117,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ...defs.slice(3),
         ...mids.slice(2),
         ...fwds.slice(1)
-      ].sort((a, b) => b.score - a.score);
+      ].sort((a: any, b: any) => b.score - a.score);
 
       for (const player of remainingCandidates) {
         if (tempStartingOutfield.length < 10) {
           const counts = {
-            def: tempStartingOutfield.filter(p => p.position === "DEF").length,
-            mid: tempStartingOutfield.filter(p => p.position === "MID").length,
-            fwd: tempStartingOutfield.filter(p => p.position === "FWD").length,
+            def: tempStartingOutfield.filter((p: any) => p.position === "DEF").length,
+            mid: tempStartingOutfield.filter((p: any) => p.position === "MID").length,
+            fwd: tempStartingOutfield.filter((p: any) => p.position === "FWD").length,
           };
           let canAdd = false;
           if (player.position === "DEF" && counts.def < 5) canAdd = true;
@@ -123,20 +140,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       startingXI.push(...tempStartingOutfield);
       bench.push(...tempBenchOutfield);
 
-      const response: RecommendationResponse = {
+      const response = {
         squad,
         startingXI,
         bench,
-        captain: startingXI.sort((a, b) => b.score - a.score)[0],
-        viceCaptain: startingXI.sort((a, b) => b.score - a.score)[1],
+        captain: [...startingXI].sort((a: any, b: any) => b.score - a.score)[0],
+        viceCaptain: [...startingXI].sort((a: any, b: any) => b.score - a.score)[1],
         topPicks: {
-          gkp: scoredPlayers.filter(p => p.position === "GKP").sort((a, b) => b.score - a.score).slice(0, 5),
-          def: scoredPlayers.filter(p => p.position === "DEF").sort((a, b) => b.score - a.score).slice(0, 5),
-          mid: scoredPlayers.filter(p => p.position === "MID").sort((a, b) => b.score - a.score).slice(0, 5),
-          fwd: scoredPlayers.filter(p => p.position === "FWD").sort((a, b) => b.score - a.score).slice(0, 5),
+          gkp: scoredPlayers.filter((p: any) => p.position === "GKP").sort((a: any, b: any) => b.score - a.score).slice(0, 5),
+          def: scoredPlayers.filter((p: any) => p.position === "DEF").sort((a: any, b: any) => b.score - a.score).slice(0, 5),
+          mid: scoredPlayers.filter((p: any) => p.position === "MID").sort((a: any, b: any) => b.score - a.score).slice(0, 5),
+          fwd: scoredPlayers.filter((p: any) => p.position === "FWD").sort((a: any, b: any) => b.score - a.score).slice(0, 5),
         },
-        totalCost: squad.reduce((acc, p) => acc + p.now_cost, 0),
-        expectedPoints: startingXI.reduce((acc, p) => acc + p.score, 0)
+        totalCost: squad.reduce((acc: number, p: any) => acc + p.now_cost, 0),
+        expectedPoints: startingXI.reduce((acc: number, p: any) => acc + p.score, 0)
       };
 
       console.log('[API] Sending response successfully');
@@ -147,19 +164,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(500).json({ 
         error: "Internal server error", 
         message: error?.message || String(error),
-        stack: process.env.NODE_ENV !== 'production' ? error?.stack : undefined
       });
     }
   } else if (url?.includes('/api/debug')) {
-    // Enhanced diagnostics endpoint
     const diagnostics: any = {
       timestamp: new Date().toISOString(),
       node_version: process.version,
       env: process.env.NODE_ENV,
+      solver_loaded: !!solver,
+      solver_type: typeof solver,
+      solver_keys: solver ? Object.keys(solver).slice(0, 5) : [],
       checks: {}
     };
 
-    // Check solver loads
+    // Check solver
     try {
       const testModel = {
         optimize: "x", opType: "max" as const,
@@ -172,7 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       diagnostics.checks.solver = { ok: false, error: e.message };
     }
 
-    // Check FPL API reachability
+    // Check FPL API
     try {
       const data = await fetchFPLData();
       diagnostics.checks.fpl_api = { 

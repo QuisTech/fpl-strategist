@@ -1,5 +1,5 @@
 import axios from "axios";
-import { FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, RecommendationResponse } from "./types";
+import { FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, RecommendationResponse } from "./types.js";
 
 const FPL_BASE_URL = "https://fantasy.premierleague.com/api";
 

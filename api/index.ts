@@ -15,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const solverModule = await import("javascript-lp-solver");
     solver = solverModule.default || solverModule;
-    fplLogic = await import('./fpl-logic');
+    fplLogic = await import('./fpl-logic.js');
   } catch (initError: any) {
     console.error('[INIT] Module loading failed:', initError?.message, initError?.stack);
     return res.status(500).json({ 

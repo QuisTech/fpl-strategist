@@ -90,7 +90,7 @@ export interface TransferRecommendation {
 
 export interface ChipAdvice {
   chip: string;
-  recommendation: "STRONG BUY" | "HOLD" | "AVOID";
+  recommendation: string;
   reason: string;
 }
 

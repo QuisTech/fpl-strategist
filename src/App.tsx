@@ -65,7 +65,7 @@ const PlayerCard = ({
           {player.web_name}
         </div>
         <div className="text-[9px] font-bold text-fpl-green">
-          {player.score.toFixed(1)} xP
+          {(player?.score || 0).toFixed(1)} xP
         </div>
       </div>
     </div>
@@ -326,7 +326,7 @@ export default function App() {
                               <span className="text-xs font-bold text-slate-200">{p.web_name}</span>
                               <span className="text-[9px] text-slate-500 uppercase font-medium">{p.team_short_name} • £{(p.now_cost/10).toFixed(1)}m</span>
                             </div>
-                            <span className="text-xs font-mono font-bold text-fpl-green">{p.score.toFixed(1)}</span>
+                            <span className="text-xs font-mono font-bold text-fpl-green">{(p?.score || 0).toFixed(1)}</span>
                           </div>
                         ))}
                       </div>
@@ -369,7 +369,7 @@ export default function App() {
                           </div>
                           <div className="w-px h-10 bg-slate-800"></div>
                           <div className="flex flex-col items-center justify-center min-w-[60px]">
-                            <span className="text-xl font-black text-fpl-green">+{rec.scoreJump.toFixed(1)}</span>
+                            <span className="text-xl font-black text-fpl-green">+{(rec?.scoreJump || 0).toFixed(1)}</span>
                             <span className="text-[8px] text-slate-500 font-bold uppercase">xP Gain</span>
                           </div>
                         </div>
@@ -428,10 +428,10 @@ export default function App() {
                 <div key={p.id} className={cn("flex items-center justify-between border-b border-fpl-border pb-2", i >= 4 && "border-0")}>
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-slate-200">{p.web_name}</span>
-                    <span className="text-[10px] text-slate-500 uppercase">{p.position} | £{(p.now_cost/10).toFixed(1)}</span>
+                    <span className="text-[10px] text-slate-500 uppercase">{p.position} | £{((p?.now_cost || 0)/10).toFixed(1)}</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-mono font-bold text-fpl-green">{p.ppm.toFixed(2)}</span>
+                    <span className="text-sm font-mono font-bold text-fpl-green">{(p?.ppm || 0).toFixed(2)}</span>
                     <div className="text-[8px] text-slate-500 uppercase font-bold">Pts/£M</div>
                   </div>
                 </div>

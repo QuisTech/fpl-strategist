@@ -81,3 +81,21 @@ export interface RecommendationResponse {
   totalCost: number;
   expectedPoints: number;
 }
+
+export interface TransferRecommendation {
+  out: ScoredPlayer;
+  in: ScoredPlayer;
+  scoreJump: number;
+}
+
+export interface ChipAdvice {
+  chip: string;
+  recommendation: "STRONG BUY" | "HOLD" | "AVOID";
+  reason: string;
+}
+
+export interface TeamSyncResponse {
+  squad: ScoredPlayer[];
+  transfers: TransferRecommendation[];
+  chips: ChipAdvice[];
+}

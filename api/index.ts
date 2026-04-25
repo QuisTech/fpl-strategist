@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const { fetchFPLData, calculatePlayerScore, getPositionName, getNextFixtures } = fplLogic;
+  const { fetchFPLData, calculatePlayerScore, calculateMultiWeekScore, getPositionName, getNextFixtures, getTransferRecommendations, getChipAdvice } = fplLogic;
 
   if (url?.includes('/api/recommendations')) {
     try {
@@ -44,8 +44,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const team = data.teams.find((t: any) => t.id === p.team);
         return {
           ...p,
-          score: calculatePlayerScore(p, data.teams, data.fixtures, riskMode, data.nextEventId),
-          ppm: (calculatePlayerScore(p, data.teams, data.fixtures, riskMode, data.nextEventId) / (p.now_cost / 10)) || 0,
+          score: calculateMultiWeekScore(p, data.teams, data.fixtures, riskMode, data.nextEventId, 3),
+          ppm: (calculateMultiWeekScore(p, data.teams, data.fixtures, riskMode, data.nextEventId, 3) / (p.now_cost / 10)) || 0,
           team_name: team?.name || "Unknown",
           team_short_name: team?.short_name || "UNK",
           position: getPositionName(p.element_type),
@@ -163,6 +163,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: "Internal server error", 
         message: error?.message || String(error),
       });
+    }
+    }
+  } else if (url?.includes('/api/sync')) {
+    try {
+      const teamId = url.split('/').pop()?.split('?')[0];
+      if (!teamId || teamId === 'sync') return res.status(400).json({ error: "Team ID is required" });
+
+      const riskMode = (req.query.riskMode as 'safe' | 'aggressive') || 'safe';
+      const data = await fetchFPLData();
+      if (!data) return res.status(500).json({ error: "Failed to fetch FPL data" });
+
+      // 1. Fetch user's current picks
+      const currentGw = data.nextEventId - 1;
+      const axios = (await import('axios')).default;
+      const picksResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${teamId}/event/${currentGw}/picks/`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+
+      const pickIds = picksResponse.data.picks.map((p: any) => p.element);
+      
+      // 2. Score all players
+      const allPlayers = data.players.map((p: any) => {
+        const team = data.teams.find((t: any) => t.id === p.team);
+        return {
+          ...p,
+          score: calculateMultiWeekScore(p, data.teams, data.fixtures, riskMode, data.nextEventId, 3),
+          ppm: (calculateMultiWeekScore(p, data.teams, data.fixtures, riskMode, data.nextEventId, 3) / (p.now_cost / 10)) || 0,
+          team_name: team?.name || "Unknown",
+          team_short_name: team?.short_name || "UNK",
+          position: getPositionName(p.element_type),
+          next_fixtures: getNextFixtures(p.team, data.teams, data.fixtures)
+        };
+      });
+
+      const squad = allPlayers.filter((p: any) => pickIds.includes(p.id));
+      const transfers = getTransferRecommendations(squad, allPlayers);
+      const chips = getChipAdvice(data.teams, data.fixtures, data.nextEventId);
+
+      res.status(200).json({ squad, transfers, chips });
+    } catch (error: any) {
+      console.error('[API] Sync failed:', error.message);
+      res.status(500).json({ error: "Failed to sync team. Please check Team ID." });
     }
   } else if (url?.includes('/api/debug')) {
     const diagnostics: any = {

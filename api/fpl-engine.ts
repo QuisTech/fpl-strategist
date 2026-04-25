@@ -1,4 +1,4 @@
-import { FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, TransferRecommendation, ChipAdvice } from "./src/types";
+import { FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, TransferRecommendation, ChipAdvice } from "./types";
 
 export function calculateMultiWeekScore(player: FPLPlayer, teams: FPLTeam[], fixtures: FPLFixture[], riskMode: 'safe' | 'aggressive', nextEventId: number, weeks: number = 3, calculatePlayerScore: Function) {
   let totalScore = 0;
@@ -32,7 +32,7 @@ export function getChipAdvice(teams: FPLTeam[], fixtures: FPLFixture[], nextEven
   const advice: ChipAdvice[] = [];
   
   const dgwTeams = teams.filter(t => {
-    const gwFixtures = fixtures.filter(f => f.event === nextEventId && (f.team_h === t.id || f.team_a === t.id));
+    const gwFixtures = fixtures.filter(f => f.event !== null && f.event === nextEventId && (f.team_h === t.id || f.team_a === t.id));
     return gwFixtures.length > 1;
   });
   
@@ -44,7 +44,7 @@ export function getChipAdvice(teams: FPLTeam[], fixtures: FPLFixture[], nextEven
       : "No major Double Gameweeks this week."
   });
 
-  const totalFixturesInGW = fixtures.filter(f => f.event === nextEventId).length;
+  const totalFixturesInGW = fixtures.filter(f => f.event !== null && f.event === nextEventId).length;
   advice.push({
     chip: "Bench Boost",
     recommendation: totalFixturesInGW > 12 ? "STRONG BUY" : "HOLD",
@@ -54,7 +54,7 @@ export function getChipAdvice(teams: FPLTeam[], fixtures: FPLFixture[], nextEven
   });
 
   const blankTeams = teams.filter(t => {
-    const gwFixtures = fixtures.filter(f => f.event === nextEventId && (f.team_h === t.id || f.team_a === t.id));
+    const gwFixtures = fixtures.filter(f => f.event !== null && f.event === nextEventId && (f.team_h === t.id || f.team_a === t.id));
     return gwFixtures.length === 0;
   });
 

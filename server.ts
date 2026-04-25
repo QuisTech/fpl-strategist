@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 // @ts-ignore
+import solver from "javascript-lp-solver";
 import { fetchFPLData, calculatePlayerScore, getPositionName, getNextFixtures } from "./api/fpl-logic";
 import { calculateMultiWeekScore, getTransferRecommendations, getChipAdvice } from "./api/fpl-engine";
 import { ScoredPlayer, RecommendationResponse, TeamSyncResponse } from "./src/types";
@@ -160,8 +161,8 @@ async function startServer() {
         const team = data.teams.find(t => t.id === p.team);
         return {
           ...p,
-          score: calculateMultiWeekScore(p, data.teams, data.fixtures, riskMode, data.nextEventId, 3),
-          ppm: (calculateMultiWeekScore(p, data.teams, data.fixtures, riskMode, data.nextEventId, 3) / (p.now_cost / 10)) || 0,
+          score: calculateMultiWeekScore(p, data.teams, data.fixtures, riskMode, data.nextEventId, 3, calculatePlayerScore),
+          ppm: (calculateMultiWeekScore(p, data.teams, data.fixtures, riskMode, data.nextEventId, 3, calculatePlayerScore) / (p.now_cost / 10)) || 0,
           team_name: team?.name || "Unknown",
           team_short_name: team?.short_name || "UNK",
           position: getPositionName(p.element_type),

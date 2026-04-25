@@ -1,5 +1,5 @@
 import axios from "axios";
-import { FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, RecommendationResponse } from "./types.js";
+import { FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, TransferRecommendation, ChipAdvice } from "./types";
 
 const FPL_BASE_URL = "https://fantasy.premierleague.com/api";
 
@@ -105,8 +105,8 @@ export function calculatePlayerScore(player: FPLPlayer, teams: FPLTeam[], fixtur
   const ict = (parseFloat(player.ict_index) || 0) / 10; // Normalized
 
   const playerTeamId = player.team;
-  const nextGwFixtures = fixtures.filter(f => f.event === nextEventId && (f.team_h === playerTeamId || f.team_a === playerTeamId));
-  const followOnFixtures = fixtures.filter(f => f.event > nextEventId && (f.team_h === playerTeamId || f.team_a === playerTeamId)).slice(0, 2);
+  const nextGwFixtures = fixtures.filter(f => f.event !== null && f.event === nextEventId && (f.team_h === playerTeamId || f.team_a === playerTeamId));
+  const followOnFixtures = fixtures.filter(f => f.event !== null && f.event > nextEventId && (f.team_h === playerTeamId || f.team_a === playerTeamId)).slice(0, 2);
   
   if (nextGwFixtures.length === 0) return 0;
 

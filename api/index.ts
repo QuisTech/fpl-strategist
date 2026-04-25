@@ -102,10 +102,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const startingXI = squad.filter(p => p.position === "GKP").sort((a, b) => b.score - a.score).slice(0, 1).concat(
         squad.filter(p => p.position !== "GKP").sort((a, b) => b.score - a.score).slice(0, 10)
       );
+      const expectedPoints = startingXI.reduce((sum, p) => sum + (p.score || 0), 0);
+      const totalCost = squad.reduce((sum, p) => sum + (p.now_cost || 0), 0);
       res.status(200).json({ 
         squad, startingXI, bench: squad.filter(p => !startingXI.includes(p)),
         captain: startingXI.sort((a, b) => b.score - a.score)[0],
         viceCaptain: startingXI.sort((a, b) => b.score - a.score)[1],
+        expectedPoints,
+        totalCost,
         topPicks: {
           gkp: scored.filter(p => p.position === "GKP").sort((a, b) => b.score - a.score).slice(0, 5),
           def: scored.filter(p => p.position === "DEF").sort((a, b) => b.score - a.score).slice(0, 5),

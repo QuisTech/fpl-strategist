@@ -15,17 +15,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const solverModule = await import("javascript-lp-solver");
     solver = solverModule.default || solverModule;
-    fplLogic = await import('./fpl-logic.js');
+    // Try both .js and .ts extensions for Vercel compatibility
+    try {
+      fplLogic = await import('./fpl-logic.js');
+    } catch {
+      fplLogic = await import('./fpl-logic.ts');
+    }
   } catch (initError: any) {
-    console.error('[INIT] Module loading failed:', initError?.message, initError?.stack);
+    console.error('[INIT] Module loading failed:', initError?.message);
     return res.status(500).json({ 
       error: "Module initialization failed", 
-      message: initError?.message,
-      stack: initError?.stack
+      message: initError?.message
     });
   }
 
-  const { fetchFPLData, calculatePlayerScore, calculateMultiWeekScore, getPositionName, getNextFixtures, getTransferRecommendations, getChipAdvice } = fplLogic;
+  // Debug: Log available functions to catch "not a function" errors early
+  console.log('[INIT] Available functions:', Object.keys(fplLogic || {}));
+
+  const { 
+    fetchFPLData, 
+    calculatePlayerScore, 
+    calculateMultiWeekScore, 
+    getPositionName, 
+    getNextFixtures, 
+    getTransferRecommendations, 
+    getChipAdvice 
+  } = fplLogic;
+
+  // Fallback check
+  if (!calculateMultiWeekScore) {
+    console.error('[INIT] calculateMultiWeekScore is missing from exports!');
+    return res.status(500).json({ error: "Server configuration error: Multi-week scoring logic missing" });
+  }
 
   if (url?.includes('/api/recommendations')) {
     try {

@@ -56,13 +56,13 @@ const PlayerCard = ({
       
       <div className="flex-1 flex flex-col items-center justify-center space-y-1">
         <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
-          {player.team_short_name}
+          {player?.team_short_name || "UNK"}
         </div>
         <div className={cn(
           "font-bold text-slate-100 text-center leading-tight truncate w-full px-1 bg-slate-950 rounded",
           compact ? "text-[10px]" : "text-[11px]"
         )}>
-          {player.web_name}
+          {player?.web_name || "Unknown"}
         </div>
         <div className="text-[9px] font-bold text-fpl-green">
           {(player?.score || 0).toFixed(1)} xP
@@ -96,7 +96,6 @@ export default function App() {
       setError(null);
     } catch (err) {
       console.error("Fetch error:", err);
-      // Fallback: clear loading even on error so user can still sync
     } finally {
       setLoading(false);
     }
@@ -174,7 +173,7 @@ export default function App() {
             <div className="h-8 w-px bg-slate-800"></div>
             <div className="flex flex-col text-right">
               <span className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">Expected Points</span>
-              <span className="text-xl font-bold text-fpl-green tabular-nums">+{data?.expectedPoints.toFixed(1)} xP</span>
+              <span className="text-xl font-bold text-fpl-green tabular-nums">+{(data?.expectedPoints || 0).toFixed(1)} xP</span>
             </div>
           </div>
         </header>
@@ -189,11 +188,11 @@ export default function App() {
             </div>
             <div>
               <div className="text-4xl font-bold font-mono tracking-tighter text-white">
-                £{(data?.totalCost! / 10).toFixed(1)}M
+                £{((data?.totalCost || 0) / 10).toFixed(1)}M
               </div>
               <div className="flex justify-between mt-3 pt-3 border-t border-fpl-border">
                 <span className="text-slate-400 text-xs font-medium">ITB Remaining</span>
-                <span className="font-mono font-black text-sm text-fpl-green">£{(100 - (data?.totalCost! / 10)).toFixed(1)}M</span>
+                <span className="font-mono font-black text-sm text-fpl-green">£{(100 - ((data?.totalCost || 0) / 10)).toFixed(1)}M</span>
               </div>
             </div>
             <div className="mt-6 space-y-3">
@@ -216,8 +215,8 @@ export default function App() {
                 <Star className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-[10px] text-slate-500 uppercase font-black">{data?.captain.team_name}</p>
-                <p className="text-sm font-black text-white">{data?.captain.web_name}</p>
+                <p className="text-[10px] text-slate-500 uppercase font-black">{data?.captain?.team_name || "Unknown"}</p>
+                <p className="text-sm font-black text-white">{data?.captain?.web_name || "Unknown"}</p>
                 <p className="text-[10px] text-fpl-green font-bold">Captain Pick</p>
               </div>
             </div>
@@ -291,19 +290,19 @@ export default function App() {
                     {formation.gkp.map(p => <PlayerCard key={p.id} player={p} />)}
                   </div>
                   <div className="flex justify-around items-center">
-                    {formation.def.map(p => <PlayerCard key={p.id} player={p} isCaptain={p.id === data?.captain.id} isViceCaptain={p.id === data?.viceCaptain.id} />)}
+                    {formation.def.map(p => <PlayerCard key={p.id} player={p} isCaptain={p.id === data?.captain?.id} isViceCaptain={p.id === data?.viceCaptain?.id} />)}
                   </div>
                   <div className="flex justify-around items-center">
-                    {formation.mid.map(p => <PlayerCard key={p.id} player={p} isCaptain={p.id === data?.captain.id} isViceCaptain={p.id === data?.viceCaptain.id} />)}
+                    {formation.mid.map(p => <PlayerCard key={p.id} player={p} isCaptain={p.id === data?.captain?.id} isViceCaptain={p.id === data?.viceCaptain?.id} />)}
                   </div>
                   <div className="flex justify-around items-center">
-                    {formation.fwd.map(p => <PlayerCard key={p.id} player={p} isCaptain={p.id === data?.captain.id} isViceCaptain={p.id === data?.viceCaptain.id} />)}
+                    {formation.fwd.map(p => <PlayerCard key={p.id} player={p} isCaptain={p.id === data?.captain?.id} isViceCaptain={p.id === data?.viceCaptain?.id} />)}
                   </div>
 
                   {/* Pitch Bench Sub-Component */}
                   <div className="mt-8 pt-4 border-t border-fpl-border/50">
                     <div className="flex justify-center gap-2">
-                       {data?.bench.filter(Boolean).map(p => <PlayerCard key={p.id} player={p} compact />)}
+                       {data?.bench?.filter(Boolean).map(p => <PlayerCard key={p.id} player={p} compact />)}
                     </div>
                     <p className="text-center text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-2 px-6">Substitution Bench</p>
                   </div>
@@ -323,11 +322,11 @@ export default function App() {
                         <span className="text-[10px] font-mono text-slate-600">xP</span>
                       </div>
                       <div className="divide-y divide-fpl-border/50">
-                        {data?.topPicks[pos].map(p => (
+                        {data?.topPicks[pos]?.map(p => (
                           <div key={p.id} className="p-2 flex items-center justify-between hover:bg-white/5 transition-colors">
                             <div className="flex flex-col">
                               <span className="text-xs font-bold text-slate-200">{p.web_name}</span>
-                              <span className="text-[9px] text-slate-500 uppercase font-medium">{p.team_short_name} • £{(p.now_cost/10).toFixed(1)}m</span>
+                              <span className="text-[9px] text-slate-500 uppercase font-medium">{p.team_short_name} • £{((p?.now_cost || 0)/10).toFixed(1)}m</span>
                             </div>
                             <span className="text-xs font-mono font-bold text-fpl-green">{(p?.score || 0).toFixed(1)}</span>
                           </div>
@@ -361,13 +360,13 @@ export default function App() {
                             <div className="flex flex-col">
                               <span className="text-[9px] text-rose-500 font-black uppercase">Transfer Out</span>
                               <span className="text-sm font-bold text-slate-100">{rec.out.web_name}</span>
-                              <span className="text-[10px] text-slate-500 uppercase">{rec.out.team_short_name} • £{(rec.out.now_cost/10).toFixed(1)}m</span>
+                              <span className="text-[10px] text-slate-500 uppercase">{rec.out.team_short_name} • £{((rec?.out?.now_cost || 0)/10).toFixed(1)}m</span>
                             </div>
                             <ArrowRightCircle className="text-slate-700 group-hover:text-fpl-green transition-colors" />
                             <div className="flex flex-col text-right">
                               <span className="text-[9px] text-fpl-green font-black uppercase">Transfer In</span>
                               <span className="text-sm font-bold text-slate-100">{rec.in.web_name}</span>
-                              <span className="text-[10px] text-slate-500 uppercase">{rec.in.team_short_name} • £{(rec.in.now_cost/10).toFixed(1)}m</span>
+                              <span className="text-[10px] text-slate-500 uppercase">{rec.in.team_short_name} • £{((rec?.in?.now_cost || 0)/10).toFixed(1)}m</span>
                             </div>
                           </div>
                           <div className="w-px h-10 bg-slate-800"></div>
@@ -427,7 +426,7 @@ export default function App() {
           <div className="bg-card-bg border border-fpl-border rounded-3xl p-5 flex flex-col shadow-sm">
             <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Top Value Picks (PPM)</h2>
             <div className="space-y-3 flex-grow">
-               {data?.topPicks.mid.slice(0, 5).map((p, i) => (
+               {data?.topPicks?.mid?.slice(0, 5).map((p, i) => (
                 <div key={p.id} className={cn("flex items-center justify-between border-b border-fpl-border pb-2", i >= 4 && "border-0")}>
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-slate-200">{p.web_name}</span>
@@ -452,14 +451,14 @@ export default function App() {
           <div className="bg-card-bg border border-fpl-border rounded-3xl p-5 shadow-sm">
             <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Next Fixtures</h2>
             <div className="space-y-4">
-              {data?.squad.slice(0, 5).map(p => (
+              {data?.squad?.slice(0, 5).map(p => (
                 <div key={p.id} className="flex flex-col gap-1.5">
                   <div className="flex justify-between text-[10px] font-bold">
                     <span className="text-slate-200">{p.team_short_name}</span>
-                    <span className="text-slate-500">({p.next_fixtures.map(f => f.opponent).join(', ')})</span>
+                    <span className="text-slate-500">({p.next_fixtures?.map(f => f.opponent).join(', ')})</span>
                   </div>
                   <div className="flex gap-1 h-2.5">
-                    {p.next_fixtures.map((f, i) => (
+                    {p.next_fixtures?.map((f, i) => (
                       <div 
                         key={i} 
                         className={cn(

@@ -160,3 +160,102 @@ export function getNextFixtures(playerTeamId: number, teams: FPLTeam[], fixtures
       };
     });
 }
+
+export function calculateMultiWeekScore(player: FPLPlayer, teams: FPLTeam[], fixtures: FPLFixture[], riskMode: 'safe' | 'aggressive', nextEventId: number, weeks: number = 3) {
+  let totalScore = 0;
+  for (let i = 0; i < weeks; i++) {
+    totalScore += calculatePlayerScore(player, teams, fixtures, riskMode, nextEventId + i);
+  }
+  return totalScore;
+}
+
+export function getTransferRecommendations(currentSquad: ScoredPlayer[], allPlayers: ScoredPlayer[]): TransferRecommendation[] {
+  const recommendations: TransferRecommendation[] = [];
+  
+  // Sort current squad by their 3-week projected score (ascending - worst first)
+  const sortedSquad = [...currentSquad].sort((a, b) => a.score - b.score);
+  
+  // For each player in our squad, find the best replacement in the same position
+  for (const playerOut of sortedSquad.slice(0, 5)) { // Look at 5 worst performers
+    const potentialReplacements = allPlayers
+      .filter(p => p.element_type === playerOut.element_type && p.id !== playerOut.id && p.now_cost <= playerOut.now_cost + 5) // Within budget (+0.5m flexibility)
+      .sort((a, b) => b.score - a.score);
+    
+    if (potentialReplacements.length > 0) {
+      const playerIn = potentialReplacements[0];
+      const scoreJump = playerIn.score - playerOut.score;
+      
+      if (scoreJump > 0) {
+        recommendations.push({
+          out: playerOut,
+          in: playerIn,
+          scoreJump
+        });
+      }
+    }
+  }
+  
+  return recommendations.sort((a, b) => b.scoreJump - a.scoreJump).slice(0, 5);
+}
+
+export function getChipAdvice(teams: FPLTeam[], fixtures: FPLFixture[], nextEventId: number): ChipAdvice[] {
+  const advice: ChipAdvice[] = [];
+  
+  // 1. Triple Captain Logic
+  const dgwTeams = teams.filter(t => {
+    const gwFixtures = fixtures.filter(f => f.event === nextEventId && (f.team_h === t.id || f.team_a === t.id));
+    return gwFixtures.length > 1;
+  });
+  
+  if (dgwTeams.length > 0) {
+    advice.push({
+      chip: "Triple Captain",
+      recommendation: "STRONG BUY",
+      reason: `Double Gameweek for ${dgwTeams.map(t => t.short_name).join(', ')}. Perfect time for TC.`
+    });
+  } else {
+    advice.push({
+      chip: "Triple Captain",
+      recommendation: "HOLD",
+      reason: "No major Double Gameweeks this week. Save for a high-ceiling DGW."
+    });
+  }
+
+  // 2. Bench Boost Logic
+  const totalFixturesInGW = fixtures.filter(f => f.event === nextEventId).length;
+  if (totalFixturesInGW > 12) {
+    advice.push({
+      chip: "Bench Boost",
+      recommendation: "STRONG BUY",
+      reason: "Massive Double Gameweek detected. Maximize your bench points now."
+    });
+  } else {
+    advice.push({
+      chip: "Bench Boost",
+      recommendation: "HOLD",
+      reason: "Wait for a Gameweek where your entire squad (including bench) has favorable fixtures."
+    });
+  }
+
+  // 3. Free Hit Logic
+  const blankTeams = teams.filter(t => {
+    const gwFixtures = fixtures.filter(f => f.event === nextEventId && (f.team_h === t.id || f.team_a === t.id));
+    return gwFixtures.length === 0;
+  });
+
+  if (blankTeams.length > 6) {
+    advice.push({
+      chip: "Free Hit",
+      recommendation: "STRONG BUY",
+      reason: `Massive Blank Gameweek (${blankTeams.length} teams not playing). Use FH to field a full XI.`
+    });
+  } else {
+    advice.push({
+      chip: "Free Hit",
+      recommendation: "AVOID",
+      reason: "Standard Gameweek. Save Free Hit for a major Blank or Double Gameweek."
+    });
+  }
+
+  return advice;
+}

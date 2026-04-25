@@ -3,8 +3,9 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 // @ts-ignore
 import solver from "javascript-lp-solver";
-import { fetchFPLData, calculatePlayerScore, getPositionName, getNextFixtures } from "./fpl-logic";
-import { ScoredPlayer, RecommendationResponse } from "./src/types";
+import { fetchFPLData, calculatePlayerScore, calculateMultiWeekScore, getPositionName, getNextFixtures, getTransferRecommendations, getChipAdvice } from "./fpl-logic";
+import { ScoredPlayer, RecommendationResponse, TeamSyncResponse } from "./src/types";
+import axios from "axios";
 
 const app = express();
 const PORT = 3000;
@@ -136,6 +137,52 @@ async function startServer() {
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/sync/:teamId", async (req, res) => {
+    try {
+      const { teamId } = req.params;
+      const riskMode = (req.query.riskMode as 'safe' | 'aggressive') || 'safe';
+      const data = await fetchFPLData();
+      if (!data) return res.status(500).json({ error: "Failed to fetch FPL data" });
+
+      // 1. Fetch user's current picks (from the last completed/current GW)
+      const currentGw = data.nextEventId - 1;
+      const picksResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${teamId}/event/${currentGw}/picks/`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+
+      const pickIds = picksResponse.data.picks.map((p: any) => p.element);
+      
+      // 2. Score all players
+      const allPlayers: ScoredPlayer[] = data.players.map(p => {
+        const team = data.teams.find(t => t.id === p.team);
+        return {
+          ...p,
+          score: calculateMultiWeekScore(p, data.teams, data.fixtures, riskMode, data.nextEventId, 3),
+          ppm: (calculateMultiWeekScore(p, data.teams, data.fixtures, riskMode, data.nextEventId, 3) / (p.now_cost / 10)) || 0,
+          team_name: team?.name || "Unknown",
+          team_short_name: team?.short_name || "UNK",
+          position: getPositionName(p.element_type),
+          next_fixtures: getNextFixtures(p.team, data.teams, data.fixtures)
+        };
+      });
+
+      const squad = allPlayers.filter(p => pickIds.includes(p.id));
+      const transfers = getTransferRecommendations(squad, allPlayers);
+      const chips = getChipAdvice(data.teams, data.fixtures, data.nextEventId);
+
+      const response: TeamSyncResponse = {
+        squad,
+        transfers,
+        chips
+      };
+
+      res.json(response);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message || "Failed to sync team" });
     }
   });
 

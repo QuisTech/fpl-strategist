@@ -16,7 +16,7 @@ import {
   List,
   Star
 } from 'lucide-react';
-import { RecommendationResponse, ScoredPlayer } from './types';
+import { RecommendationResponse, ScoredPlayer, TeamSyncResponse, TransferRecommendation, ChipAdvice } from './types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -77,7 +77,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [riskMode, setRiskMode] = useState<'safe' | 'aggressive'>('safe');
-  const [tab, setTab] = useState<'pitch' | 'picks'>('pitch');
+  const [tab, setTab] = useState<'pitch' | 'picks' | 'transfers' | 'chips'>('pitch');
+  const [teamId, setTeamId] = useState<string>('');
+  const [syncedData, setSyncedData] = useState<TeamSyncResponse | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     fetchRecommendations();
@@ -93,6 +96,21 @@ export default function App() {
       setError("Failed to load FPL data. Please check FPL API status.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const syncTeam = async () => {
+    if (!teamId) return;
+    setSyncing(true);
+    try {
+      const res = await axios.get(`/api/sync/${teamId}?riskMode=${riskMode}`);
+      setSyncedData(res.data);
+      setTab('transfers');
+      setError(null);
+    } catch (err) {
+      setError("Failed to sync team. Check your Team ID.");
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -224,8 +242,37 @@ export default function App() {
                     tab === 'picks' ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300"
                   )}
                 >Data</button>
+                <button 
+                  onClick={() => setTab('transfers')}
+                  className={cn(
+                    "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                    tab === 'transfers' ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300"
+                  )}
+                >Transfers</button>
+                <button 
+                  onClick={() => setTab('chips')}
+                  className={cn(
+                    "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                    tab === 'chips' ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300"
+                  )}
+                >Chips</button>
               </div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Formation: {formation.def.length}-{formation.mid.length}-{formation.fwd.length}</div>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="text" 
+                  placeholder="TEAM ID" 
+                  value={teamId}
+                  onChange={(e) => setTeamId(e.target.value)}
+                  className="bg-slate-950 border border-fpl-border rounded-lg px-3 py-1 text-[10px] font-mono text-fpl-green w-24 focus:outline-none focus:border-fpl-green"
+                />
+                <button 
+                  onClick={syncTeam}
+                  disabled={syncing}
+                  className="bg-fpl-purple hover:bg-fpl-purple/80 disabled:opacity-50 text-white text-[10px] font-black px-3 py-1 rounded-lg transition-colors"
+                >
+                  {syncing ? 'SYNCING...' : 'SYNC TEAM'}
+                </button>
+              </div>
             </div>
 
             <AnimatePresence mode="wait">
@@ -285,6 +332,86 @@ export default function App() {
                       </div>
                     </div>
                   ))}
+                </motion.div>
+              ) : tab === 'transfers' ? (
+                <motion.div
+                  key="transfer-view"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col gap-6"
+                >
+                  {!syncedData ? (
+                    <div className="flex flex-col items-center justify-center h-full py-20 text-center">
+                      <div className="w-16 h-16 bg-slate-950 rounded-full flex items-center justify-center mb-4 border-2 border-dashed border-slate-800">
+                        <Users className="text-slate-700" />
+                      </div>
+                      <h3 className="text-slate-300 font-bold mb-2">Sync Your Team</h3>
+                      <p className="text-slate-500 text-xs max-w-xs">Enter your FPL Team ID above to see personalized transfer recommendations and "xP Jump" metrics.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] mb-4">Top 1-for-1 Swaps</h3>
+                      {syncedData.transfers.map((rec, i) => (
+                        <div key={i} className="flex items-center gap-4 bg-slate-950/50 p-4 rounded-2xl border border-fpl-border hover:border-fpl-green/50 transition-colors group">
+                          <div className="flex-1 flex items-center justify-between">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] text-rose-500 font-black uppercase">Transfer Out</span>
+                              <span className="text-sm font-bold text-slate-100">{rec.out.web_name}</span>
+                              <span className="text-[10px] text-slate-500 uppercase">{rec.out.team_short_name} • £{(rec.out.now_cost/10).toFixed(1)}m</span>
+                            </div>
+                            <ArrowRightCircle className="text-slate-700 group-hover:text-fpl-green transition-colors" />
+                            <div className="flex flex-col text-right">
+                              <span className="text-[9px] text-fpl-green font-black uppercase">Transfer In</span>
+                              <span className="text-sm font-bold text-slate-100">{rec.in.web_name}</span>
+                              <span className="text-[10px] text-slate-500 uppercase">{rec.in.team_short_name} • £{(rec.in.now_cost/10).toFixed(1)}m</span>
+                            </div>
+                          </div>
+                          <div className="w-px h-10 bg-slate-800"></div>
+                          <div className="flex flex-col items-center justify-center min-w-[60px]">
+                            <span className="text-xl font-black text-fpl-green">+{rec.scoreJump.toFixed(1)}</span>
+                            <span className="text-[8px] text-slate-500 font-bold uppercase">xP Gain</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="chip-view"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-4"
+                >
+                   <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] mb-4">Strategic Chip Advisor</h3>
+                   {!syncedData ? (
+                     <div className="p-8 text-center text-slate-500 text-sm italic">Sync your team to get personalized chip advice based on your current roster.</div>
+                   ) : (
+                     <div className="grid grid-cols-1 gap-4">
+                       {syncedData.chips.map((chip, i) => (
+                         <div key={i} className="bg-slate-950/80 p-5 rounded-3xl border border-fpl-border flex flex-col gap-3">
+                           <div className="flex justify-between items-center">
+                             <div className="flex items-center gap-3">
+                               <div className={cn(
+                                 "w-2 h-2 rounded-full",
+                                 chip.recommendation === 'STRONG BUY' ? "bg-fpl-green shadow-[0_0_8px_rgba(0,255,133,0.5)]" :
+                                 chip.recommendation === 'HOLD' ? "bg-amber-500" : "bg-rose-500"
+                               )}></div>
+                               <span className="text-sm font-black text-white uppercase tracking-wider">{chip.chip}</span>
+                             </div>
+                             <span className={cn(
+                               "text-[10px] font-black px-2 py-0.5 rounded",
+                               chip.recommendation === 'STRONG BUY' ? "bg-fpl-green/10 text-fpl-green" :
+                               chip.recommendation === 'HOLD' ? "bg-amber-500/10 text-amber-500" : "bg-rose-500/10 text-rose-500"
+                             )}>{chip.recommendation}</span>
+                           </div>
+                           <p className="text-xs text-slate-400 leading-relaxed">{chip.reason}</p>
+                         </div>
+                       ))}
+                     </div>
+                   )}
                 </motion.div>
               )}
             </AnimatePresence>

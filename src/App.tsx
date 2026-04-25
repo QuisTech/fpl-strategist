@@ -305,7 +305,7 @@ export default function App() {
                     <p className="text-center text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-2 px-6">Substitution Bench</p>
                   </div>
                 </motion.div>
-              ) : (
+              ) : tab === 'picks' ? (
                 <motion.div 
                   key="data-view"
                   initial={{ opacity: 0 }}

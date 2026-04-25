@@ -164,7 +164,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         message: error?.message || String(error),
       });
     }
-    }
   } else if (url?.includes('/api/sync')) {
     try {
       const teamId = url.split('/').pop()?.split('?')[0];

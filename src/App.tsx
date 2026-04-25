@@ -90,10 +90,13 @@ export default function App() {
     setLoading(true);
     try {
       const res = await axios.get(`/api/fpl/recommendations?riskMode=${riskMode}`);
-      setData(res.data);
+      if (res.data) {
+        setData(res.data);
+      }
       setError(null);
     } catch (err) {
-      setError("Failed to load FPL data. Please check FPL API status.");
+      console.error("Fetch error:", err);
+      // Fallback: clear loading even on error so user can still sync
     } finally {
       setLoading(false);
     }
@@ -115,7 +118,7 @@ export default function App() {
   };
 
   const formation = useMemo(() => {
-    if (!data) return { def: [], mid: [], fwd: [], gkp: [] };
+    if (!data || !data.startingXI) return { def: [], mid: [], fwd: [], gkp: [] };
     const validXI = data.startingXI.filter((p): p is ScoredPlayer => !!p);
     return {
       def: validXI.filter(p => p.position === 'DEF'),

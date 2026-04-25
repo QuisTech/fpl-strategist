@@ -12,7 +12,7 @@
   ],
   "functions": {
     "api/index.ts": {
-      "includeFiles": "fpl-logic.ts",
+      "includeFiles": "api/fpl-logic.ts,api/fpl-engine.ts",
       "maxDuration": 30
     }
   }

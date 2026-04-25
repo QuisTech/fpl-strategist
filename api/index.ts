@@ -2,8 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import axios from 'axios';
 // @ts-ignore
 import solver from "javascript-lp-solver";
-import * as fplLogic from '../fpl-logic';
-import * as fplEngine from '../fpl-engine';
+import * as fplLogic from './fpl-logic';
+import * as fplEngine from './fpl-engine';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');

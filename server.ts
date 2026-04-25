@@ -2,8 +2,8 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 // @ts-ignore
-import solver from "javascript-lp-solver";
-import { fetchFPLData, calculatePlayerScore, calculateMultiWeekScore, getPositionName, getNextFixtures, getTransferRecommendations, getChipAdvice } from "./fpl-logic";
+import { fetchFPLData, calculatePlayerScore, getPositionName, getNextFixtures } from "./api/fpl-logic";
+import { calculateMultiWeekScore, getTransferRecommendations, getChipAdvice } from "./api/fpl-engine";
 import { ScoredPlayer, RecommendationResponse, TeamSyncResponse } from "./src/types";
 import axios from "axios";
 

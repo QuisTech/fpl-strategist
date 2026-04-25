@@ -89,7 +89,7 @@ export default function App() {
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/recommendations?riskMode=${riskMode}`);
+      const res = await axios.get(`/api/fpl/recommendations?riskMode=${riskMode}`);
       setData(res.data);
       setError(null);
     } catch (err) {
@@ -103,7 +103,7 @@ export default function App() {
     if (!teamId) return;
     setSyncing(true);
     try {
-      const res = await axios.get(`/api/sync/${teamId}?riskMode=${riskMode}`);
+      const res = await axios.get(`/api/fpl/sync/${teamId}?riskMode=${riskMode}`);
       setSyncedData(res.data);
       setTab('transfers');
       setError(null);

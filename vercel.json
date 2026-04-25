@@ -2,8 +2,12 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/api/fpl/(.*)",
+      "destination": "/api/fpl.ts"
+    },
+    {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api/fpl.ts"
     },
     {
       "source": "/(.*)",
@@ -11,8 +15,7 @@
     }
   ],
   "functions": {
-    "api/index.ts": {
-      "includeFiles": "api/fpl-logic.ts,api/fpl-engine.ts",
+    "api/fpl.ts": {
       "maxDuration": 30
     }
   }

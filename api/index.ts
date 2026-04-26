@@ -99,9 +99,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       const solution = solver.Solve(model);
       const squad = available.filter(p => solution[`p_${p.id}`] === 1);
-      const startingXI = squad.filter(p => p.position === "GKP").sort((a, b) => b.score - a.score).slice(0, 1).concat(
-        squad.filter(p => p.position !== "GKP").sort((a, b) => b.score - a.score).slice(0, 10)
-      );
+      // Build a valid starting XI: 1 GKP + 10 outfield with min 3 DEF, 2 MID, 1 FWD
+      const sortByScore = (a: any, b: any) => b.score - a.score;
+      const gkps = squad.filter(p => p.position === "GKP").sort(sortByScore);
+      const defs = squad.filter(p => p.position === "DEF").sort(sortByScore);
+      const mids = squad.filter(p => p.position === "MID").sort(sortByScore);
+      const fwds = squad.filter(p => p.position === "FWD").sort(sortByScore);
+      
+      // Lock in minimums
+      const xi: typeof squad = [gkps[0]];
+      const lockedDefs = defs.slice(0, 3);
+      const lockedMids = mids.slice(0, 2);
+      const lockedFwds = fwds.slice(0, 1);
+      xi.push(...lockedDefs, ...lockedMids, ...lockedFwds); // 7 players locked
+      
+      // Fill remaining 4 spots from leftover outfield players by score
+      const lockedIds = new Set(xi.map(p => p.id));
+      const remaining = [...defs, ...mids, ...fwds].filter(p => !lockedIds.has(p.id)).sort(sortByScore);
+      xi.push(...remaining.slice(0, 4));
+      
+      const startingXI = xi.filter(Boolean);
       const expectedPoints = startingXI.reduce((sum, p) => sum + (p.score || 0), 0);
       const totalCost = squad.reduce((sum, p) => sum + (p.now_cost || 0), 0);
       res.status(200).json({ 

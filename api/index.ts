@@ -81,15 +81,31 @@ export class FPLService {
     return score;
   }
 
+  private static mapToScoredPlayer(p: FPLPlayer, teams: FPLTeam[], fixtures: FPLFixture[], nextEventId: number, riskMode: string): ScoredPlayer {
+    const posMap: Record<number, string> = { 1: "GKP", 2: "DEF", 3: "MID", 4: "FWD" };
+    const position = posMap[p.element_type] || "MID";
+    const team = teams.find(t => t.id === p.team);
+    
+    return {
+      ...p,
+      position,
+      team_name: team?.name || "Unknown",
+      team_short_name: team?.short_name || "UNK",
+      score: this.calculatePlayerScore(p, fixtures, nextEventId, riskMode),
+      ppm: (p.total_points || 0) / (p.now_cost / 10),
+      next_fixtures: [],
+      isCaptain: false,
+      isViceCaptain: false
+    };
+  }
+
   static async getRecommendations(riskMode: string): Promise<RecommendationResponse> {
     const { players, teams, fixtures, nextEventId } = await this.getBaseData();
 
     const available = players.filter(p => p.status === 'a' || p.chance_of_playing_next_round === 100);
-    const scored = available.map(p => ({
-      ...p,
-      score: this.calculatePlayerScore(p, fixtures, nextEventId, riskMode),
-      ppm: (p.total_points || 0) / (p.now_cost / 10)
-    }));
+    const scored = available.map(p => this.mapToScoredPlayer(p, teams, fixtures, nextEventId, riskMode));
+
+
 
     const model: LPSolverModel = {
       optimize: "score",
@@ -156,13 +172,15 @@ export class FPLService {
 
     const myPicks = teamRes.data.picks.map((p: any) => {
       const player = baseData.players.find((pl: any) => pl.id === p.element);
+      if (!player) return null;
+      const mapped = this.mapToScoredPlayer(player, baseData.teams, baseData.fixtures, baseData.nextEventId, riskMode);
       return {
-        ...player,
-        score: 0,
+        ...mapped,
         isCaptain: p.is_captain,
         isViceCaptain: p.is_vice_captain
       };
-    });
+    }).filter(Boolean) as ScoredPlayer[];
+
 
     return {
       currentTeam: myPicks,

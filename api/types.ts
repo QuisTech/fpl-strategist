@@ -53,7 +53,10 @@ export interface ScoredPlayer extends FPLPlayer {
   team_short_name: string;
   position: string;
   next_fixtures: { opponent: string; difficulty: number }[];
+  isCaptain: boolean;
+  isViceCaptain: boolean;
 }
+
 
 export interface RecommendationResponse {
   squad: ScoredPlayer[];

@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import axios from 'axios';
-// @ts-ignore
 import solver from "javascript-lp-solver";
 import { z } from 'zod';
 import { 
@@ -234,16 +233,23 @@ export class FPLService {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
+  const url = req.url || "/";
+  console.log(`[VERCEL] Incoming request: ${req.method} ${url}`);
+  
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const { url, query } = req;
+    const query = req.query || {};
     const riskMode = (query.riskMode as string) || 'safe';
 
-    if (url?.includes('/api/recommendations')) {
+    if (url.includes('/api/ping')) {
+      return res.status(200).json({ status: "ok", message: "Grand Cru Engine Online" });
+    }
+
+    if (url.includes('/api/recommendations')) {
       const result = await FPLService.getRecommendations(riskMode);
       res.status(200).json(result);
     } else if (url?.includes('/api/sync')) {

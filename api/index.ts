@@ -2,13 +2,24 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import axios from 'axios';
 // @ts-ignore
 import solver from "javascript-lp-solver";
-import { FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer } from './types';
+import { z } from 'zod';
+import { 
+  FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, 
+  FPLPlayerSchema, FPLTeamSchema, FPLFixtureSchema 
+} from './types';
 
 const FPL_BASE_URL = "https://fantasy.premierleague.com/api";
 
+interface LPSolverModel {
+  optimize: string;
+  opType: "max" | "min";
+  constraints: Record<string, { max?: number; min?: number; equal?: number }>;
+  variables: Record<string, Record<string, number>>;
+  ints: Record<string, boolean | 0 | 1>;
+}
+
 /**
  * Robust FPL Data Service
- * "The single barrel for all FPL logic"
  */
 export class FPLService {
   private static USER_AGENTS = [
@@ -31,43 +42,62 @@ export class FPLService {
       axios.get(`${FPL_BASE_URL}/fixtures/`, config)
     ]);
 
+    // Validation Layer (Filtration)
+    const players = z.array(FPLPlayerSchema).parse(staticRes.data.elements);
+    const teams = z.array(FPLTeamSchema).parse(staticRes.data.teams);
+    const fixtures = z.array(FPLFixtureSchema).parse(fixturesRes.data);
+
     const nextEvent = staticRes.data.events.find((e: any) => new Date(e.deadline_time) > new Date()) || { id: 1 };
-    return {
-      players: staticRes.data.elements,
-      teams: staticRes.data.teams,
-      fixtures: fixturesRes.data,
-      nextEventId: nextEvent.id
-    };
+    
+    return { players, teams, fixtures, nextEventId: nextEvent.id };
   }
 
-  static calculatePlayerScore(player: FPLPlayer, fixtures: FPLFixture[], riskMode: string, gw: number) {
+  private static getAttackingPotential(player: FPLPlayer): number {
     const xG = parseFloat(player.expected_goals) || 0;
     const xA = parseFloat(player.expected_assists) || 0;
     
-    let attPot = (player.element_type === 4) ? (xG * 4 + xA * 3) : 
-                 (player.element_type === 3) ? (xG * 5 + xA * 3) : 
-                 (xG * 6 + xA * 3);
-                 
-    const form = parseFloat(player.form) || 0;
-    const ict = (parseFloat(player.ict_index) || 0) / 10;
-    
+    // GKP: 1, DEF: 2, MID: 3, FWD: 4
+    if (player.element_type === 4) return (xG * 4 + xA * 3);
+    if (player.element_type === 3) return (xG * 5 + xA * 3);
+    return (xG * 6 + xA * 3);
+  }
+
+  private static getFixtureMultiplier(player: FPLPlayer, fixtures: FPLFixture[], gw: number): number {
     const gwFixtures = fixtures.filter(f => f.event === gw && (f.team_h === player.team || f.team_a === player.team));
     if (gwFixtures.length === 0) return 0;
     
-    const fdr = gwFixtures.reduce((acc, f) => 
-      acc + (f.team_h === player.team ? (5 - f.team_h_difficulty + 1) : (5 - f.team_a_difficulty + 1)), 0
+    // FDR multiplier (lower difficulty = higher multiplier)
+    const totalDifficulty = gwFixtures.reduce((acc, f) => 
+      acc + (f.team_h === player.team ? f.team_h_difficulty : f.team_a_difficulty), 0
     );
+    const avgDifficulty = totalDifficulty / gwFixtures.length;
     
-    let score = (attPot * 0.5 + form * 0.3 + ict * 0.2) * (fdr / 3);
-    
+    return (5 - avgDifficulty + 1) / 3;
+  }
+
+  private static applyRiskProfile(score: number, player: FPLPlayer, riskMode: string): number {
     const ownership = parseFloat(player.selected_by_percent) || 0;
+    let adjustedScore = score;
+
     if (riskMode === 'safe') {
-      score += (ownership / 100) * 1.5;
+      adjustedScore += (ownership / 100) * 1.5;
     } else if (ownership < 15) {
-      score *= 1.35;
+      adjustedScore *= 1.35;
     }
-    
-    return score * ((player.chance_of_playing_next_round ?? 100) / 100);
+
+    return adjustedScore * ((player.chance_of_playing_next_round ?? 100) / 100);
+  }
+
+  static calculatePlayerScore(player: FPLPlayer, fixtures: FPLFixture[], riskMode: string, gw: number): number {
+    const attPot = this.getAttackingPotential(player);
+    const form = parseFloat(player.form) || 0;
+    const ict = (parseFloat(player.ict_index) || 0) / 10;
+    const multiplier = this.getFixtureMultiplier(player, fixtures, gw);
+
+    if (multiplier === 0) return 0;
+
+    const baseScore = (attPot * 0.5 + form * 0.3 + ict * 0.2) * multiplier;
+    return this.applyRiskProfile(baseScore, player, riskMode);
   }
 
   static scoreAll(players: FPLPlayer[], teams: FPLTeam[], fixtures: FPLFixture[], riskMode: string, nextEventId: number): ScoredPlayer[] {
@@ -101,7 +131,7 @@ export class FPLService {
     const scored = this.scoreAll(data.players, data.teams, data.fixtures, riskMode, data.nextEventId);
     const available = scored.filter(p => p.status !== 'u' && p.status !== 'n');
     
-    const model: any = {
+    const model: LPSolverModel = {
       optimize: "score",
       opType: "max",
       constraints: { cost: { max: 1000 }, total: { equal: 15 }, gkp: { equal: 2 }, def: { equal: 5 }, mid: { equal: 5 }, fwd: { equal: 3 } },
@@ -153,9 +183,8 @@ export class FPLService {
 
   static async syncTeam(teamId: string, riskMode: string) {
     const data = await this.getBaseData();
-    const picksRes = await axios.get(`https://fantasy.premierleague.com/api/entry/${teamId}/event/${data.nextEventId - 1}/picks/`, { 
-      headers: { 'User-Agent': 'Mozilla/5.0' } 
-    });
+    const config = { headers: { 'User-Agent': 'Mozilla/5.0' } };
+    const picksRes = await axios.get(`https://fantasy.premierleague.com/api/entry/${teamId}/event/${data.nextEventId - 1}/picks/`, config);
     
     const pickIds = picksRes.data.picks.map((p: any) => p.element);
     const scored = this.scoreAll(data.players, data.teams, data.fixtures, riskMode, data.nextEventId);

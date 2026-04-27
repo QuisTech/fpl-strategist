@@ -1,43 +1,49 @@
-export interface FPLPlayer {
-  id: number;
-  web_name: string;
-  first_name: string;
-  second_name: string;
-  now_cost: number;
-  element_type: number;
-  team: number;
-  total_points: number;
-  form: string;
-  points_per_game: string;
-  selected_by_percent: string;
-  minutes: number;
-  goals_scored: number;
-  assists: number;
-  clean_sheets: number;
-  status: string;
-  news: string;
-  chance_of_playing_next_round: number | null;
-  expected_goals: string;
-  expected_assists: string;
-  ict_index: string;
-}
+import { z } from 'zod';
 
-export interface FPLTeam {
-  id: number;
-  name: string;
-  short_name: string;
-  strength: number;
-}
+export const FPLPlayerSchema = z.object({
+  id: z.number(),
+  web_name: z.string(),
+  first_name: z.string(),
+  second_name: z.string(),
+  now_cost: z.number(),
+  element_type: z.number(),
+  team: z.number(),
+  total_points: z.number(),
+  form: z.string(),
+  points_per_game: z.string(),
+  selected_by_percent: z.string(),
+  minutes: z.number(),
+  goals_scored: z.number(),
+  assists: z.number(),
+  clean_sheets: z.number(),
+  status: z.string(),
+  news: z.string(),
+  chance_of_playing_next_round: z.number().nullable(),
+  expected_goals: z.string(),
+  expected_assists: z.string(),
+  ict_index: z.string(),
+});
 
-export interface FPLFixture {
-  id: number;
-  team_h: number;
-  team_a: number;
-  team_h_difficulty: number;
-  team_a_difficulty: number;
-  event: number | null;
-  finished: boolean;
-}
+export const FPLTeamSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  short_name: z.string(),
+  strength: z.number(),
+});
+
+export const FPLFixtureSchema = z.object({
+  id: z.number(),
+  team_h: z.number(),
+  team_a: z.number(),
+  team_h_difficulty: z.number(),
+  team_a_difficulty: z.number(),
+  event: z.number().nullable(),
+  finished: z.boolean(),
+});
+
+export type FPLPlayer = z.infer<typeof FPLPlayerSchema>;
+export type FPLTeam = z.infer<typeof FPLTeamSchema>;
+export type FPLFixture = z.infer<typeof FPLFixtureSchema>;
 
 export interface ScoredPlayer extends FPLPlayer {
   score: number;
@@ -82,3 +88,4 @@ export interface TeamSyncResponse {
   transfers: TransferRecommendation[];
   chips: ChipAdvice[];
 }
+

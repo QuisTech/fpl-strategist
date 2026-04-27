@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { 
   FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, 
   FPLPlayerSchema, FPLTeamSchema, FPLFixtureSchema 
-} from './types';
+} from './types.js';
+
 
 const FPL_BASE_URL = "https://fantasy.premierleague.com/api";
 

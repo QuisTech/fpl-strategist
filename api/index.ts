@@ -1,18 +1,31 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import axios from 'axios';
+import solver from "javascript-lp-solver";
 import { z } from 'zod';
 import { 
   FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, 
-  FPLPlayerSchema, FPLTeamSchema, FPLFixtureSchema 
+  FPLPlayerSchema, FPLTeamSchema, FPLFixtureSchema,
+  RecommendationResponse, TeamSyncResponse
 } from './types.js';
-
 
 const FPL_BASE_URL = "https://fantasy.premierleague.com/api";
 
+interface LPSolverModel {
+  optimize: string;
+  opType: "max" | "min";
+  constraints: Record<string, { max?: number; min?: number; equal?: number }>;
+  variables: Record<string, Record<string, number>>;
+  ints: Record<string, number>;
+}
+
 export class FPLService {
   private static getHeaders() {
+    const userAgents = [
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ];
     return {
-      "User-Agent": "Mozilla/5.0",
+      "User-Agent": userAgents[Math.floor(Math.random() * userAgents.length)],
       "Accept": "application/json",
       "Referer": "https://fantasy.premierleague.com/"
     };
@@ -42,23 +55,155 @@ export class FPLService {
     
     return { players, teams, fixtures, nextEventId: nextEvent.id };
   }
+
+  private static calculatePlayerScore(player: FPLPlayer, fixtures: FPLFixture[], nextEventId: number, riskMode: string): number {
+    let score = player.total_points / (player.now_cost / 10);
+    const form = parseFloat(player.form) || 0;
+    score += form * 2;
+    
+    const xG = parseFloat(player.expected_goals) || 0;
+    const xA = parseFloat(player.expected_assists) || 0;
+    score += (xG * 5) + (xA * 3);
+
+    const upcoming = fixtures.filter(f => f.event >= nextEventId && f.event < nextEventId + 3)
+      .filter(f => f.team_h === player.team || f.team_a === player.team);
+
+    let difficultyMultiplier = 1.0;
+    upcoming.forEach(f => {
+      const fdr = f.team_h === player.team ? f.team_h_difficulty : f.team_a_difficulty;
+      difficultyMultiplier *= (1 + (3 - fdr) * 0.1);
+    });
+    score *= difficultyMultiplier;
+
+    if (riskMode === 'aggressive' && player.selected_by_percent && parseFloat(player.selected_by_percent) < 5) {
+      score *= 1.25;
+    }
+    return score;
+  }
+
+  static async getRecommendations(riskMode: string): Promise<RecommendationResponse> {
+    const { players, teams, fixtures, nextEventId } = await this.getBaseData();
+
+    const available = players.filter(p => p.status === 'a' || p.chance_of_playing_next_round === 100);
+    const scored = available.map(p => ({
+      ...p,
+      score: this.calculatePlayerScore(p, fixtures, nextEventId, riskMode),
+      ppm: (p.total_points || 0) / (p.now_cost / 10)
+    }));
+
+    const model: LPSolverModel = {
+      optimize: "score",
+      opType: "max",
+      constraints: { cost: { max: 1000 }, total: { equal: 15 }, gkp: { equal: 2 }, def: { equal: 5 }, mid: { equal: 5 }, fwd: { equal: 3 } },
+      variables: {},
+      ints: {}
+    };
+
+    teams.forEach(t => { model.constraints[`team_${t.id}`] = { max: 3 }; });
+    scored.forEach(p => {
+      const v = `p_${p.id}`;
+      model.variables[v] = { score: p.score, cost: p.now_cost, total: 1, [p.position.toLowerCase()]: 1, [`team_${p.team}`]: 1, [v]: 1 };
+      model.constraints[v] = { max: 1 };
+      model.ints[v] = 1;
+    });
+
+    const solution = solver.Solve(model);
+    const squad = scored.filter(p => {
+      const val = solution[`p_${p.id}`];
+      return val === true || val === 1 || (typeof val === 'number' && val > 0.5);
+    });
+    
+    const sortByScore = (a: ScoredPlayer, b: ScoredPlayer) => (b.score || 0) - (a.score || 0);
+    const gkps = squad.filter(p => p.position === "GKP").sort(sortByScore);
+    const defs = squad.filter(p => p.position === "DEF").sort(sortByScore);
+    const mids = squad.filter(p => p.position === "MID").sort(sortByScore);
+    const fwds = squad.filter(p => p.position === "FWD").sort(sortByScore);
+    
+    const mandatory = [gkps[0], ...defs.slice(0, 3), ...mids.slice(0, 2), ...fwds.slice(0, 1)].filter(Boolean) as ScoredPlayer[];
+    const lockedIds = new Set(mandatory.map(p => p.id));
+    const others = squad.filter(p => !lockedIds.has(p.id)).sort(sortByScore);
+    const startingXI = [...mandatory, ...others.slice(0, 11 - mandatory.length)].filter(Boolean) as ScoredPlayer[];
+    
+    return { 
+      squad, startingXI, 
+      bench: squad.filter(p => !startingXI.find(x => x.id === p.id)).sort(sortByScore),
+      captain: startingXI.sort(sortByScore)[0] || null,
+      viceCaptain: startingXI.sort(sortByScore)[1] || null,
+      expectedPoints: startingXI.reduce((sum, p) => sum + (p.score || 0), 0),
+      totalCost: squad.reduce((sum, p) => sum + (p.now_cost || 0), 0),
+      topPicks: {
+        gkp: scored.filter(p => p.position === "GKP").sort(sortByScore).slice(0, 5),
+        def: scored.filter(p => p.position === "DEF").sort(sortByScore).slice(0, 5),
+        mid: scored.filter(p => p.position === "MID").sort(sortByScore).slice(0, 5),
+        fwd: scored.filter(p => p.position === "FWD").sort(sortByScore).slice(0, 5)
+      },
+      nextFixtures: teams.map(t => ({
+        team: t.short_name,
+        fixtures: fixtures
+          .filter(f => f.event >= nextEventId && f.event < nextEventId + 3)
+          .filter(f => f.team_h === t.id || f.team_a === t.id)
+          .map(f => (f.team_h === t.id ? teams.find(team => team.id === f.team_a)?.short_name : teams.find(team => team.id === f.team_h)?.short_name) || "")
+      }))
+    };
+  }
+
+  static async syncTeam(teamId: string, riskMode: string): Promise<TeamSyncResponse> {
+    const config = { headers: this.getHeaders() };
+    const [teamRes, baseData] = await Promise.all([
+      axios.get(`${FPL_BASE_URL}/entry/${teamId}/picks/`, config),
+      this.getBaseData()
+    ]);
+
+    const myPicks = teamRes.data.picks.map((p: any) => {
+      const player = baseData.players.find((pl: any) => pl.id === p.element);
+      return {
+        ...player,
+        score: 0,
+        isCaptain: p.is_captain,
+        isViceCaptain: p.is_vice_captain
+      };
+    });
+
+    return {
+      currentTeam: myPicks,
+      recommendations: await this.getRecommendations(riskMode),
+      transferSuggestions: []
+    };
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const url = req.url || "/";
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
   try {
-    if (url.includes('/api/ping')) {
-      return res.status(200).json({ status: "stage_2_ok", message: "Core Service Running" });
-    }
+    const query = req.query || {};
+    const riskMode = (query.riskMode as string) || 'safe';
+
+    if (url.includes('/api/recommendations')) {
+      const result = await FPLService.getRecommendations(riskMode);
+      return res.status(200).json(result);
+    } 
     
-    if (url.includes('/api/data-check')) {
-      const data = await FPLService.getBaseData();
-      return res.status(200).json({ status: "data_ok", players: data.players.length });
+    if (url.includes('/api/sync')) {
+      const teamId = url.split('/').pop()?.split('?')[0];
+      if (!teamId) return res.status(400).json({ error: "Missing Team ID" });
+      const result = await FPLService.syncTeam(teamId, riskMode);
+      return res.status(200).json(result);
     }
 
-    res.status(200).json({ message: "Diagnostic Stage 2", url });
+    if (url.includes('/api/ping')) {
+      return res.status(200).json({ status: "ok", message: "Grand Cru Engine Online" });
+    }
+
+    res.status(404).json({ error: "Route not found" });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("[CRITICAL] FPL Engine Failure:", error);
+    res.status(500).json({ 
+      error: "FPL Engine Failure", 
+      message: error.message
+    });
   }
 }
-

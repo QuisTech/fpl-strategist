@@ -174,24 +174,25 @@ export class FPLService {
     
     const sortByScore = (a: ScoredPlayer, b: ScoredPlayer) => (b.score || 0) - (a.score || 0);
 
-    const gkps = squad.filter(p => p.position === "GKP").sort(sortByScore);
-    const defs = squad.filter(p => p.position === "DEF").sort(sortByScore);
-    const mids = squad.filter(p => p.position === "MID").sort(sortByScore);
-    const fwds = squad.filter(p => p.position === "FWD").sort(sortByScore);
+    const gkps = squad.filter(p => p?.position === "GKP").sort(sortByScore);
+    const defs = squad.filter(p => p?.position === "DEF").sort(sortByScore);
+    const mids = squad.filter(p => p?.position === "MID").sort(sortByScore);
+    const fwds = squad.filter(p => p?.position === "FWD").sort(sortByScore);
     
-    const xi = [gkps[0], ...defs.slice(0, 3), ...mids.slice(0, 2), ...fwds.slice(0, 1)];
-    const lockedIds = new Set(xi.map(p => p.id));
-    const remaining = [...defs, ...mids, ...fwds].filter(p => !lockedIds.has(p.id)).sort(sortByScore);
-    xi.push(...remaining.slice(0, 4));
+    // Safety-first assembly
+    const mandatory = [gkps[0], ...defs.slice(0, 3), ...mids.slice(0, 2), ...fwds.slice(0, 1)].filter((p): p is ScoredPlayer => !!p);
+    const lockedIds = new Set(mandatory.map(p => p.id));
+    const others = squad.filter(p => p && !lockedIds.has(p.id)).sort(sortByScore);
     
-    const startingXI = xi.filter(Boolean);
+    const startingXI = [...mandatory, ...others.slice(0, 11 - mandatory.length)].filter((p): p is ScoredPlayer => !!p);
     
     return { 
       squad, startingXI, 
-      bench: squad.filter(p => !startingXI.includes(p)),
-      captain: startingXI.sort(sortByScore)[0],
-      viceCaptain: startingXI.sort(sortByScore)[1],
+      bench: squad.filter(p => p && !startingXI.find(x => x.id === p.id)),
+      captain: startingXI.sort(sortByScore)[0] || null,
+      viceCaptain: startingXI.sort(sortByScore)[1] || null,
       expectedPoints: startingXI.reduce((sum, p) => sum + (p.score || 0), 0),
+
       totalCost: squad.reduce((sum, p) => sum + (p.now_cost || 0), 0),
       topPicks: {
         gkp: scored.filter(p => p.position === "GKP").sort(sortByScore).slice(0, 5),

@@ -42,15 +42,28 @@ export class FPLService {
       axios.get(`${FPL_BASE_URL}/fixtures/`, config)
     ]);
 
-    // Validation Layer (Filtration)
-    const players = z.array(FPLPlayerSchema).parse(staticRes.data.elements);
-    const teams = z.array(FPLTeamSchema).parse(staticRes.data.teams);
+    // Validation Layer (Filtration) - More resilient parsing
+    const players: FPLPlayer[] = [];
+    staticRes.data.elements.forEach((p: any) => {
+      const result = FPLPlayerSchema.safeParse(p);
+      if (result.success) players.push(result.data);
+      else console.warn(`[VALIDATION] Skipping player ${p.web_name || p.id}:`, result.error.format());
+    });
+
+    const teams: FPLTeam[] = [];
+    staticRes.data.teams.forEach((t: any) => {
+      const result = FPLTeamSchema.safeParse(t);
+      if (result.success) teams.push(result.data);
+      else console.warn(`[VALIDATION] Skipping team ${t.name || t.id}:`, result.error.format());
+    });
+
     const fixtures = z.array(FPLFixtureSchema).parse(fixturesRes.data);
 
     const nextEvent = staticRes.data.events.find((e: any) => new Date(e.deadline_time) > new Date()) || { id: 1 };
     
     return { players, teams, fixtures, nextEventId: nextEvent.id };
   }
+
 
   private static getAttackingPotential(player: FPLPlayer): number {
     const xG = parseFloat(player.expected_goals) || 0;
@@ -149,9 +162,18 @@ export class FPLService {
     });
 
     const solution = solver.Solve(model);
-    const squad = available.filter(p => solution[`p_${p.id}`] === 1);
+    console.log("[ENGINE] Solver finished. Result keys:", Object.keys(solution).length);
+
+    // Flexible parsing of solver results (handles 1, true, or 0.9999)
+    const squad = available.filter(p => {
+      const val = solution[`p_${p.id}`];
+      return val === true || val === 1 || (typeof val === 'number' && val > 0.5);
+    });
     
-    const sortByScore = (a: ScoredPlayer, b: ScoredPlayer) => b.score - a.score;
+    console.log("[ENGINE] Squad selected. Size:", squad.length);
+    
+    const sortByScore = (a: ScoredPlayer, b: ScoredPlayer) => (b.score || 0) - (a.score || 0);
+
     const gkps = squad.filter(p => p.position === "GKP").sort(sortByScore);
     const defs = squad.filter(p => p.position === "DEF").sort(sortByScore);
     const mids = squad.filter(p => p.position === "MID").sort(sortByScore);
@@ -232,6 +254,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(404).json({ error: "Route not found" });
     }
   } catch (error: any) {
-    res.status(500).json({ error: "FPL Engine Failure", message: error.message });
+    console.error("[CRITICAL] FPL Engine Failure:", error);
+    res.status(500).json({ 
+      error: "FPL Engine Failure", 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+    });
   }
 }
+

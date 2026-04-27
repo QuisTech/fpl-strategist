@@ -11,7 +11,14 @@ async function startServer() {
     appType: "spa",
   });
 
+  // Request Logging
+  app.use((req, res, next) => {
+    console.log(`[REQUEST] ${req.method} ${req.url}`);
+    next();
+  });
+
   // Local API Proxies to the Unified FPLService
+
   app.get("/api/recommendations", async (req, res) => {
     try {
       const riskMode = (req.query.riskMode as string) || 'safe';

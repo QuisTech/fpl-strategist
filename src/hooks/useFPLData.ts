@@ -22,11 +22,13 @@ export const useFPLData = (riskMode: 'safe' | 'aggressive') => {
         setData(res.data);
       }
       setError(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Fetch error:", err);
+      setError(err.response?.data?.message || err.message || "Failed to load recommendations");
     } finally {
       setLoading(false);
     }
+
   };
 
   const syncTeam = async () => {

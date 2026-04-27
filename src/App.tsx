@@ -19,6 +19,7 @@ export default function App() {
   const { 
     data, 
     loading, 
+    error,
     teamId, 
     setTeamId, 
     syncedData, 
@@ -26,6 +27,7 @@ export default function App() {
     syncTeam, 
     formation 
   } = useFPLData(riskMode);
+
 
   const handleSync = async () => {
     const success = await syncTeam();
@@ -43,7 +45,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-[#f8fafc] p-6 font-sans">
+      {error && (
+        <div className="max-w-[1400px] mx-auto mb-4 p-4 bg-red-500/10 border border-red-500/50 rounded-2xl text-red-400 text-xs font-mono">
+          <span className="font-bold uppercase mr-2">[Engine Error]:</span> {error}
+        </div>
+      )}
       <div className="max-w-[1400px] mx-auto grid grid-cols-12 gap-4 auto-rows-min">
+
         
         <Header data={data} riskMode={riskMode} setRiskMode={setRiskMode} />
 

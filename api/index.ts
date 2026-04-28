@@ -159,10 +159,9 @@ export class FPLService {
 
   static async syncTeam(teamId: string, riskMode: string): Promise<TeamSyncResponse> {
     const config = { headers: this.getHeaders() };
-    const [teamRes, baseData] = await Promise.all([
-      axios.get(`${FPL_BASE_URL}/entry/${teamId}/picks/`, config),
-      this.getBaseData()
-    ]);
+    const baseData = await this.getBaseData();
+    const currentEvent = Math.max(1, baseData.nextEventId - 1);
+    const teamRes = await axios.get(`${FPL_BASE_URL}/entry/${teamId}/event/${currentEvent}/picks/`, config);
 
     const myPicks = teamRes.data.picks.map((p: any) => {
       const player = baseData.players.find((pl: any) => pl.id === p.element);

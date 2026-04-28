@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { 
   FPLPlayer, FPLTeam, FPLFixture, ScoredPlayer, 
   FPLPlayerSchema, FPLTeamSchema, FPLFixtureSchema,
-  RecommendationResponse, TeamSyncResponse
+  RecommendationResponse, TeamSyncResponse, TransferRecommendation, ChipAdvice
 } from './types.js';
 
 const FPL_BASE_URL = "https://fantasy.premierleague.com/api";
@@ -157,6 +157,44 @@ export class FPLService {
     };
   }
 
+  static generateTransfers(squad: ScoredPlayer[], candidates: ScoredPlayer[]): TransferRecommendation[] {
+    const transfers: TransferRecommendation[] = [];
+    squad.forEach(outPlayer => {
+      const betterOptions = candidates.filter(p => 
+        p.position === outPlayer.position && 
+        p.id !== outPlayer.id &&
+        p.now_cost <= outPlayer.now_cost &&
+        (p.score || 0) > (outPlayer.score || 0) + 0.5
+      ).sort((a, b) => (b.score || 0) - (a.score || 0));
+
+      if (betterOptions.length > 0) {
+        transfers.push({ out: outPlayer, in: betterOptions[0], scoreJump: (betterOptions[0].score || 0) - (outPlayer.score || 0) });
+      }
+    });
+    return transfers.sort((a, b) => b.scoreJump - a.scoreJump).slice(0, 5);
+  }
+
+  static generateChipAdvice(squad: ScoredPlayer[]): ChipAdvice[] {
+    const avgScore = squad.reduce((sum, p) => sum + (p.score || 0), 0) / (squad.length || 1);
+    return [
+      {
+        chip: "Wildcard",
+        recommendation: avgScore < 4.0 ? "STRONG BUY" : "HOLD",
+        reason: avgScore < 4.0 ? "Your squad's average expected points are low. Time for an overhaul." : "Your squad has solid projected points. Save it."
+      },
+      {
+        chip: "Free Hit",
+        recommendation: "HOLD",
+        reason: "Save your Free Hit for upcoming Blank or Double Gameweeks."
+      },
+      {
+        chip: "Bench Boost",
+        recommendation: "AVOID",
+        reason: "Wait for a Double Gameweek where your bench players have two fixtures."
+      }
+    ];
+  }
+
   static async syncTeam(teamId: string, riskMode: string): Promise<TeamSyncResponse> {
     const config = { headers: this.getHeaders() };
     const baseData = await this.getBaseData();
@@ -174,11 +212,18 @@ export class FPLService {
       };
     }).filter(Boolean) as ScoredPlayer[];
 
+    const recommendations = await this.getRecommendations(riskMode);
+    const candidates = [
+      ...recommendations.topPicks.gkp,
+      ...recommendations.topPicks.def,
+      ...recommendations.topPicks.mid,
+      ...recommendations.topPicks.fwd
+    ];
 
     return {
       squad: myPicks,
-      transfers: [],
-      chips: []
+      transfers: this.generateTransfers(myPicks, candidates),
+      chips: this.generateChipAdvice(myPicks)
     };
   }
 }

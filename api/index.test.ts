@@ -25,7 +25,7 @@ describe('FPLService - Scoring Logic', () => {
     expected_goals: '0.8',
     expected_assists: '0.4',
     ict_index: '15.0'
-  };
+  } as any;
 
   const mockFixtures: FPLFixture[] = [
     {
@@ -40,7 +40,7 @@ describe('FPLService - Scoring Logic', () => {
   ];
 
   it('should calculate higher score for better fixtures', () => {
-    const scoreEasy = FPLService.calculatePlayerScore(mockPlayer, mockFixtures, 'safe', 30);
+    const scoreEasy = FPLService.calculatePlayerScore(mockPlayer, mockFixtures, 30, 'safe');
     
     const hardFixtures: FPLFixture[] = [
       {
@@ -54,14 +54,14 @@ describe('FPLService - Scoring Logic', () => {
       }
     ];
     
-    const scoreHard = FPLService.calculatePlayerScore(mockPlayer, hardFixtures, 'safe', 30);
+    const scoreHard = FPLService.calculatePlayerScore(mockPlayer, hardFixtures, 30, 'safe');
     expect(scoreEasy).toBeGreaterThan(scoreHard);
   });
 
   it('should apply risk multiplier for differentials in aggressive mode', () => {
     const differentialPlayer = { ...mockPlayer, selected_by_percent: '5.0' };
-    const scoreSafe = FPLService.calculatePlayerScore(differentialPlayer, mockFixtures, 'safe', 30);
-    const scoreAggressive = FPLService.calculatePlayerScore(differentialPlayer, mockFixtures, 'aggressive', 30);
+    const scoreSafe = FPLService.calculatePlayerScore(differentialPlayer, mockFixtures, 30, 'safe');
+    const scoreAggressive = FPLService.calculatePlayerScore(differentialPlayer, mockFixtures, 30, 'aggressive');
     
     expect(scoreAggressive).toBeGreaterThan(scoreSafe);
   });

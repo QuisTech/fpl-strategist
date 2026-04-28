@@ -15,7 +15,7 @@ interface LPSolverModel {
   opType: "max" | "min";
   constraints: Record<string, { max?: number; min?: number; equal?: number }>;
   variables: Record<string, Record<string, number>>;
-  ints: Record<string, number>;
+  ints: Record<string, 1>;
 }
 
 export class FPLService {
@@ -56,7 +56,7 @@ export class FPLService {
     return { players, teams, fixtures, nextEventId: nextEvent.id };
   }
 
-  private static calculatePlayerScore(player: FPLPlayer, fixtures: FPLFixture[], nextEventId: number, riskMode: string): number {
+  static calculatePlayerScore(player: FPLPlayer, fixtures: FPLFixture[], nextEventId: number, riskMode: string): number {
     let score = player.total_points / (player.now_cost / 10);
     const form = parseFloat(player.form) || 0;
     score += form * 2;
@@ -81,7 +81,7 @@ export class FPLService {
     return score;
   }
 
-  private static mapToScoredPlayer(p: FPLPlayer, teams: FPLTeam[], fixtures: FPLFixture[], nextEventId: number, riskMode: string): ScoredPlayer {
+  static mapToScoredPlayer(p: FPLPlayer, teams: FPLTeam[], fixtures: FPLFixture[], nextEventId: number, riskMode: string): ScoredPlayer {
     const posMap: Record<number, string> = { 1: "GKP", 2: "DEF", 3: "MID", 4: "FWD" };
     const position = posMap[p.element_type] || "MID";
     const team = teams.find(t => t.id === p.team);
@@ -153,13 +153,7 @@ export class FPLService {
         mid: scored.filter(p => p.position === "MID").sort(sortByScore).slice(0, 5),
         fwd: scored.filter(p => p.position === "FWD").sort(sortByScore).slice(0, 5)
       },
-      nextFixtures: teams.map(t => ({
-        team: t.short_name,
-        fixtures: fixtures
-          .filter(f => f.event >= nextEventId && f.event < nextEventId + 3)
-          .filter(f => f.team_h === t.id || f.team_a === t.id)
-          .map(f => (f.team_h === t.id ? teams.find(team => team.id === f.team_a)?.short_name : teams.find(team => team.id === f.team_h)?.short_name) || "")
-      }))
+      lastUpdated: Date.now()
     };
   }
 
@@ -183,9 +177,9 @@ export class FPLService {
 
 
     return {
-      currentTeam: myPicks,
-      recommendations: await this.getRecommendations(riskMode),
-      transferSuggestions: []
+      squad: myPicks,
+      transfers: [],
+      chips: []
     };
   }
 }

@@ -1,61 +1,50 @@
-export interface FPLPlayer {
-  id: number;
-  web_name: string;
-  first_name: string;
-  second_name: string;
-  now_cost: number;
-  element_type: number; // 1: GKP, 2: DEF, 3: MID, 4: FWD
-  team: number;
-  total_points: number;
-  form: string;
-  points_per_game: string;
-  selected_by_percent: string;
-  minutes: number;
-  goals_scored: number;
-  assists: number;
-  clean_sheets: number;
-  status: string;
-  news: string;
-  ep_this: string;
-  ep_next: string;
-  chance_of_playing_this_round: number | null;
-  chance_of_playing_next_round: number | null;
-  expected_goals: string;
-  expected_assists: string;
-  expected_goal_involvements: string;
-  expected_conceded: string;
-  influence: string;
-  creativity: string;
-  threat: string;
-  ict_index: string;
-}
+import { z } from 'zod';
 
-export interface FPLTeam {
-  id: number;
-  name: string;
-  short_name: string;
-  strength: number;
-  strength_overall_home: number;
-  strength_overall_away: number;
-  strength_attack_home: number;
-  strength_attack_away: number;
-  strength_defence_home: number;
-  strength_defence_away: number;
-}
+export const FPLPlayerSchema = z.object({
+  id: z.number(),
+  web_name: z.string(),
+  first_name: z.string(),
+  second_name: z.string(),
+  now_cost: z.number(),
+  element_type: z.number(),
+  team: z.number(),
+  total_points: z.number().nullish().default(0),
+  form: z.string().nullish().default("0.0"),
+  points_per_game: z.string().nullish().default("0.0"),
+  selected_by_percent: z.string().nullish().default("0.0"),
+  minutes: z.number().nullish().default(0),
+  goals_scored: z.number().nullish().default(0),
+  assists: z.number().nullish().default(0),
+  clean_sheets: z.number().nullish().default(0),
+  status: z.string(),
+  news: z.string().nullish().default(""),
+  chance_of_playing_next_round: z.number().nullish().default(100),
+  expected_goals: z.string().nullish().default("0.0"),
+  expected_assists: z.string().nullish().default("0.0"),
+  ict_index: z.string().nullish().default("0.0"),
+}).passthrough();
 
-export interface FPLFixture {
-  id: number;
-  code: number;
-  team_h: number;
-  team_a: number;
-  team_h_difficulty: number;
-  team_a_difficulty: number;
-  event: number | null;
-  finished: boolean;
-  minutes: number;
-  provisional_start_time: boolean;
-  kickoff_time: string;
-}
+
+export const FPLTeamSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  short_name: z.string(),
+  strength: z.number(),
+});
+
+export const FPLFixtureSchema = z.object({
+  id: z.number(),
+  team_h: z.number(),
+  team_a: z.number(),
+  team_h_difficulty: z.number(),
+  team_a_difficulty: z.number(),
+  event: z.number().nullable(),
+  finished: z.boolean(),
+});
+
+export type FPLPlayer = z.infer<typeof FPLPlayerSchema>;
+export type FPLTeam = z.infer<typeof FPLTeamSchema>;
+export type FPLFixture = z.infer<typeof FPLFixtureSchema>;
 
 export interface ScoredPlayer extends FPLPlayer {
   score: number;
@@ -63,8 +52,11 @@ export interface ScoredPlayer extends FPLPlayer {
   team_name: string;
   team_short_name: string;
   position: string;
-  next_fixtures: { opponent: string; difficulty: number; is_home: boolean }[];
+  next_fixtures: { opponent: string; difficulty: number }[];
+  isCaptain: boolean;
+  isViceCaptain: boolean;
 }
+
 
 export interface RecommendationResponse {
   squad: ScoredPlayer[];
@@ -72,14 +64,15 @@ export interface RecommendationResponse {
   bench: ScoredPlayer[];
   captain: ScoredPlayer;
   viceCaptain: ScoredPlayer;
+  expectedPoints: number;
+  totalCost: number;
   topPicks: {
     gkp: ScoredPlayer[];
     def: ScoredPlayer[];
     mid: ScoredPlayer[];
     fwd: ScoredPlayer[];
   };
-  totalCost: number;
-  expectedPoints: number;
+  lastUpdated: number;
 }
 
 export interface TransferRecommendation {
@@ -99,3 +92,4 @@ export interface TeamSyncResponse {
   transfers: TransferRecommendation[];
   chips: ChipAdvice[];
 }
+

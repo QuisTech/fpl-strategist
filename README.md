@@ -1,20 +1,27 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# FPL Strategist: Grand Cru Edition 🍷
 
-# Run and deploy your AI Studio app
+A high-fidelity Fantasy Premier League decision support tool using Linear Programming for squad optimization and 3-GW rolling expected points analysis.
 
-This contains everything you need to run your app locally.
+## Architecture
+- **Unified Engine (`api/index.ts`)**: A single source of truth for all scoring, optimization, and syncing. Decoupled via `FPLService` to support both Vercel edge functions and local development.
+- **Modular Frontend (`src/`)**: 
+  - `components/`: Decomposed UI into focused, high-fidelity components.
+  - `hooks/`: Business logic extracted from the UI for better state management.
+  - `lib/utils.ts`: Centralized utility layer.
+- **Resilience**: 
+  - **Dynamic UA Rotation**: Rotating User-Agents to prevent API corking.
+  - **Formation Integrity**: The logic now strictly enforces FPL rules (min 3 DEF, 2 MID, 1 FWD).
+  - **Type Safety**: Unified TypeScript interfaces across the stack.
 
-View your app in AI Studio: https://ai.studio/apps/8a87d015-0e55-4896-8a79-3f36ab825a1e
+## Tech Stack
+- **Framework**: Vite + React 19
+- **Logic**: TypeScript 5.8
+- **Optimization**: Linear Programming (Simplex Algorithm)
+- **Deployment**: Vercel Serverless Functions
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Local Development
+```bash
+npm install
+npm run dev
+```
+Accessible at `http://localhost:3000`

@@ -59,7 +59,7 @@ describe('FPLService - Scoring Logic', () => {
   });
 
   it('should apply risk multiplier for differentials in aggressive mode', () => {
-    const differentialPlayer = { ...mockPlayer, selected_by_percent: '5.0' };
+    const differentialPlayer = { ...mockPlayer, selected_by_percent: '4.9' };
     const scoreSafe = FPLService.calculatePlayerScore(differentialPlayer, mockFixtures, 30, 'safe');
     const scoreAggressive = FPLService.calculatePlayerScore(differentialPlayer, mockFixtures, 30, 'aggressive');
     

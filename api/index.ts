@@ -142,7 +142,11 @@ export class FPLService {
     
     return { 
       squad, startingXI, 
-      bench: squad.filter(p => !startingXI.find(x => x.id === p.id)).sort(sortByScore),
+      bench: squad.filter(p => !startingXI.find(x => x.id === p.id)).sort((a, b) => {
+        if (a.position === 'GKP' && b.position !== 'GKP') return -1;
+        if (a.position !== 'GKP' && b.position === 'GKP') return 1;
+        return (b.score || 0) - (a.score || 0);
+      }),
       captain: startingXI.sort(sortByScore)[0] || null,
       viceCaptain: startingXI.sort(sortByScore)[1] || null,
       expectedPoints: startingXI.reduce((sum, p) => sum + (p.score || 0), 0),

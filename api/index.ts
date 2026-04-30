@@ -195,6 +195,11 @@ export class FPLService {
         chip: "Bench Boost",
         recommendation: "AVOID",
         reason: "Wait for a Double Gameweek where your bench players have two fixtures."
+      },
+      {
+        chip: "Triple Captain",
+        recommendation: "HOLD",
+        reason: "Save your Triple Captain for a premium asset with a highly favorable Double Gameweek."
       }
     ];
   }

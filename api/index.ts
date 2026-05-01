@@ -19,23 +19,56 @@ interface LPSolverModel {
 }
 
 export class FPLService {
+  private static cache: { data: any; timestamp: number } | null = null;
+  private static CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   private static getHeaders() {
     const userAgents = [
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
     ];
     return {
       "User-Agent": userAgents[Math.floor(Math.random() * userAgents.length)],
-      "Accept": "application/json",
-      "Referer": "https://fantasy.premierleague.com/"
+      "Accept": "application/json, text/plain, */*",
+      "Accept-Language": "en-GB,en;q=0.9",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Referer": "https://fantasy.premierleague.com/",
+      "Origin": "https://fantasy.premierleague.com",
+      "Connection": "keep-alive",
+      "Cache-Control": "no-cache"
     };
   }
 
+  private static async fetchWithRetry(url: string, retries = 3): Promise<any> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const config = { headers: this.getHeaders(), timeout: 15000 };
+        const res = await axios.get(url, config);
+        return res;
+      } catch (err: any) {
+        console.warn(`[FPL API] Attempt ${i + 1}/${retries} failed for ${url}: ${err.response?.status || err.message}`);
+        if (i < retries - 1) {
+          await new Promise(r => setTimeout(r, 1000 * (i + 1))); // 1s, 2s backoff
+        } else {
+          throw err;
+        }
+      }
+    }
+  }
+
   static async getBaseData() {
-    const config = { headers: this.getHeaders() };
+    // Return cached data if fresh
+    if (this.cache && Date.now() - this.cache.timestamp < this.CACHE_TTL) {
+      return this.cache.data;
+    }
+
     const [staticRes, fixturesRes] = await Promise.all([
-      axios.get(`${FPL_BASE_URL}/bootstrap-static/`, config),
-      axios.get(`${FPL_BASE_URL}/fixtures/`, config)
+      this.fetchWithRetry(`${FPL_BASE_URL}/bootstrap-static/`),
+      this.fetchWithRetry(`${FPL_BASE_URL}/fixtures/`)
     ]);
 
     const players: FPLPlayer[] = [];
@@ -53,7 +86,9 @@ export class FPLService {
     const fixtures = z.array(FPLFixtureSchema).parse(fixturesRes.data);
     const nextEvent = staticRes.data.events.find((e: any) => new Date(e.deadline_time) > new Date()) || { id: 1 };
     
-    return { players, teams, fixtures, nextEventId: nextEvent.id };
+    const result = { players, teams, fixtures, nextEventId: nextEvent.id };
+    this.cache = { data: result, timestamp: Date.now() };
+    return result;
   }
 
   static calculatePlayerScore(player: FPLPlayer, fixtures: FPLFixture[], nextEventId: number, riskMode: string): number {
@@ -205,10 +240,9 @@ export class FPLService {
   }
 
   static async syncTeam(teamId: string, riskMode: string): Promise<TeamSyncResponse> {
-    const config = { headers: this.getHeaders() };
     const baseData = await this.getBaseData();
     const currentEvent = Math.max(1, baseData.nextEventId - 1);
-    const teamRes = await axios.get(`${FPL_BASE_URL}/entry/${teamId}/event/${currentEvent}/picks/`, config);
+    const teamRes = await this.fetchWithRetry(`${FPL_BASE_URL}/entry/${teamId}/event/${currentEvent}/picks/`);
 
     const myPicks = teamRes.data.picks.map((p: any) => {
       const player = baseData.players.find((pl: any) => pl.id === p.element);

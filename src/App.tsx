@@ -40,8 +40,10 @@ export default function App() {
 
   const handleSnapshot = () => {
     if (data) {
-      takeSnapshot(data.nextEventId, data);
-      alert(`Snapshot taken for GW${data.nextEventId} [${riskMode.toUpperCase()}]`);
+      const success = takeSnapshot(data.nextEventId, data, riskMode);
+      if (success) {
+        alert(`Snapshot taken for GW${data.nextEventId} [${riskMode.toUpperCase()}]`);
+      }
     }
   };
 

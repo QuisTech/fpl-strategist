@@ -39,24 +39,29 @@ export const useFPLData = (riskMode: 'safe' | 'aggressive' | 'value') => {
     }
   };
 
-  const takeSnapshot = (gwId: number, currentModeData: RecommendationResponse) => {
-    if (!gwId || !currentModeData) return;
+  const takeSnapshot = (gwId: number, currentModeData: RecommendationResponse, mode: string) => {
+    if (!gwId || !currentModeData) {
+      console.warn("[Snapshot] Missing GW ID or Data");
+      return false;
+    }
     
-    setHistory((prev: any) => {
-      const gwHistory = prev[gwId] || { safe: null, aggressive: null, value: null };
-      return {
-        ...prev,
-        [gwId]: {
-          ...gwHistory,
-          [riskMode]: {
-            ids: currentModeData.startingXI.map(p => p.id),
-            xP: currentModeData.expectedPoints,
-            captainId: currentModeData.captain?.id,
-            timestamp: Date.now()
-          }
-        }
-      };
-    });
+    const newHistory = { ...history };
+    const gwHistory = newHistory[gwId] || { safe: null, aggressive: null, value: null };
+    
+    newHistory[gwId] = {
+      ...gwHistory,
+      [mode]: {
+        ids: currentModeData.startingXI.map(p => p.id),
+        xP: currentModeData.expectedPoints,
+        captainId: currentModeData.captain?.id,
+        timestamp: Date.now()
+      }
+    };
+
+    setHistory(newHistory);
+    localStorage.setItem('fpl_optimizer_history', JSON.stringify(newHistory));
+    console.log(`[Snapshot] Saved GW${gwId} [${mode}]`, newHistory[gwId]);
+    return true;
   };
 
   const fetchLivePoints = async (gwId: number) => {

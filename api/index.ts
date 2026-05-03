@@ -110,15 +110,17 @@ export class FPLService {
     });
     score *= difficultyMultiplier;
 
-    if (riskMode === 'aggressive' && player.selected_by_percent && parseFloat(player.selected_by_percent) < 5) {
-      score *= 1.25;
-    }
+    if (riskMode !== 'value') {
+      if (riskMode === 'aggressive' && player.selected_by_percent && parseFloat(player.selected_by_percent) < 5) {
+        score *= 1.25;
+      }
 
-    // Premium player protection (captaincy value)
-    // Elite assets are worth more than their PPM suggests because you captain them
-    const costInMillions = player.now_cost / 10;
-    if (costInMillions >= 10.0) score *= 1.15;
-    else if (costInMillions >= 8.0) score *= 1.08;
+      // Premium player protection (captaincy value)
+      // Elite assets are worth more than their PPM suggests because you captain them
+      const costInMillions = player.now_cost / 10;
+      if (costInMillions >= 10.0) score *= 1.15;
+      else if (costInMillions >= 8.0) score *= 1.08;
+    }
 
     return score;
   }

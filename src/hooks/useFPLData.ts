@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { RecommendationResponse, TeamSyncResponse, ScoredPlayer } from '../types';
 
-export const useFPLData = (riskMode: 'safe' | 'aggressive') => {
+export const useFPLData = (riskMode: 'safe' | 'aggressive' | 'value') => {
   const [data, setData] = useState<RecommendationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

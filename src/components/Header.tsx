@@ -3,8 +3,8 @@ import { RecommendationResponse } from '../types';
 
 interface HeaderProps {
   data: RecommendationResponse | null;
-  riskMode: 'safe' | 'aggressive';
-  setRiskMode: (mode: 'safe' | 'aggressive') => void;
+  riskMode: 'safe' | 'aggressive' | 'value';
+  setRiskMode: (mode: 'safe' | 'aggressive' | 'value') => void;
 }
 
 export const Header = ({ data, riskMode, setRiskMode }: HeaderProps) => {
@@ -25,17 +25,24 @@ export const Header = ({ data, riskMode, setRiskMode }: HeaderProps) => {
             <button 
               onClick={() => setRiskMode('safe')}
               className={cn(
-                "px-4 py-0.5 text-[10px] rounded font-bold transition-all",
+                "px-3 py-0.5 text-[10px] rounded font-bold transition-all",
                 riskMode === 'safe' ? "bg-fpl-green text-slate-950" : "text-slate-400 hover:text-slate-200"
               )}
             >SAFE</button>
             <button 
               onClick={() => setRiskMode('aggressive')}
               className={cn(
-                "px-4 py-0.5 text-[10px] rounded font-bold transition-all",
+                "px-3 py-0.5 text-[10px] rounded font-bold transition-all",
                 riskMode === 'aggressive' ? "bg-orange-500 text-slate-950" : "text-slate-400 hover:text-slate-200"
               )}
             >RISKY</button>
+            <button 
+              onClick={() => setRiskMode('value')}
+              className={cn(
+                "px-3 py-0.5 text-[10px] rounded font-bold transition-all",
+                riskMode === 'value' ? "bg-cyan-500 text-slate-950" : "text-slate-400 hover:text-slate-200"
+              )}
+            >VALUE</button>
           </div>
         </div>
         <div className="h-8 w-px bg-slate-800"></div>

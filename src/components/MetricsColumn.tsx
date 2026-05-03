@@ -4,7 +4,7 @@ import { RecommendationResponse } from '../types';
 
 interface MetricsColumnProps {
   data: RecommendationResponse | null;
-  riskMode: 'safe' | 'aggressive';
+  riskMode: 'safe' | 'aggressive' | 'value';
 }
 
 export const MetricsColumn = ({ data, riskMode }: MetricsColumnProps) => {
@@ -32,7 +32,12 @@ export const MetricsColumn = ({ data, riskMode }: MetricsColumnProps) => {
           </div>
           <div className="flex justify-between items-center text-[11px]">
             <span className="text-slate-400">Risk Profile</span>
-            <span className={cn("font-bold uppercase", riskMode === 'aggressive' ? "text-orange-400" : "text-fpl-green")}>{riskMode}</span>
+            <span className={cn(
+              "font-bold uppercase", 
+              riskMode === 'aggressive' ? "text-orange-400" : 
+              riskMode === 'value' ? "text-cyan-400" : 
+              "text-fpl-green"
+            )}>{riskMode}</span>
           </div>
         </div>
       </div>

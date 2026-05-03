@@ -13,7 +13,7 @@ import { FixtureList } from './components/FixtureList';
 import { cn } from './lib/utils';
 
 export default function App() {
-  const [riskMode, setRiskMode] = useState<'safe' | 'aggressive'>('safe');
+  const [riskMode, setRiskMode] = useState<'safe' | 'aggressive' | 'value'>('safe');
   const [tab, setTab] = useState<'pitch' | 'picks' | 'transfers' | 'chips'>('pitch');
   
   const { 

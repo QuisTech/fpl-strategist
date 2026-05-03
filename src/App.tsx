@@ -9,12 +9,14 @@ import { PitchView } from './components/PitchView';
 import { DataGrid } from './components/DataGrid';
 import { TransferView } from './components/TransferView';
 import { ChipAdvisor } from './components/ChipAdvisor';
+import { PerformanceView } from './components/PerformanceView';
 import { FixtureList } from './components/FixtureList';
+import { Camera } from 'lucide-react';
 import { cn } from './lib/utils';
 
 export default function App() {
   const [riskMode, setRiskMode] = useState<'safe' | 'aggressive' | 'value'>('safe');
-  const [tab, setTab] = useState<'pitch' | 'picks' | 'transfers' | 'chips'>('pitch');
+  const [tab, setTab] = useState<'pitch' | 'picks' | 'transfers' | 'chips' | 'performance'>('pitch');
   
   const { 
     data, 
@@ -25,13 +27,22 @@ export default function App() {
     syncedData, 
     syncing, 
     syncTeam, 
-    formation 
+    formation,
+    history,
+    takeSnapshot,
+    fetchLivePoints
   } = useFPLData(riskMode);
-
 
   const handleSync = async () => {
     const success = await syncTeam();
     if (success) setTab('transfers');
+  };
+
+  const handleSnapshot = () => {
+    if (data) {
+      takeSnapshot(data.nextEventId, data);
+      alert(`Snapshot taken for GW${data.nextEventId} [${riskMode.toUpperCase()}]`);
+    }
   };
 
   if (loading && !data) {
@@ -64,18 +75,27 @@ export default function App() {
           <div className="relative z-10 p-6 h-full flex flex-col">
             <div className="flex justify-between items-center mb-8">
               <div className="flex space-x-1 bg-slate-950 p-1 rounded-xl border border-fpl-border">
-                {(['pitch', 'picks', 'transfers', 'chips'] as const).map((t) => (
+                {(['pitch', 'picks', 'transfers', 'chips', 'performance'] as const).map((t) => (
                   <button 
                     key={t}
                     onClick={() => setTab(t)}
                     className={cn(
-                      "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                      "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
                       tab === t ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300"
                     )}
                   >{t}</button>
                 ))}
               </div>
               <div className="flex items-center gap-2">
+                {tab === 'pitch' && data && (
+                  <button 
+                    onClick={handleSnapshot}
+                    className="flex items-center gap-2 bg-slate-900 border border-fpl-border rounded-lg px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white hover:bg-slate-800 transition-all mr-4"
+                  >
+                    <Camera className="w-3 h-3 text-fpl-green" />
+                    Snapshot
+                  </button>
+                )}
                 <input 
                   type="text" 
                   placeholder="TEAM ID" 
@@ -100,6 +120,8 @@ export default function App() {
                 <DataGrid data={data} />
               ) : tab === 'transfers' ? (
                 <TransferView syncedData={syncedData} />
+              ) : tab === 'performance' ? (
+                <PerformanceView history={history} fetchLivePoints={fetchLivePoints} />
               ) : (
                 <ChipAdvisor syncedData={syncedData} />
               )}

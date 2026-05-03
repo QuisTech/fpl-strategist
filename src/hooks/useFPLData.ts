@@ -10,6 +10,15 @@ export const useFPLData = (riskMode: 'safe' | 'aggressive' | 'value') => {
   const [syncedData, setSyncedData] = useState<TeamSyncResponse | null>(null);
   const [syncing, setSyncing] = useState(false);
 
+  const [history, setHistory] = useState<any>(() => {
+    const saved = localStorage.getItem('fpl_optimizer_history');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem('fpl_optimizer_history', JSON.stringify(history));
+  }, [history]);
+
   useEffect(() => {
     fetchRecommendations();
   }, [riskMode]);
@@ -28,7 +37,36 @@ export const useFPLData = (riskMode: 'safe' | 'aggressive' | 'value') => {
     } finally {
       setLoading(false);
     }
+  };
 
+  const takeSnapshot = (gwId: number, currentModeData: RecommendationResponse) => {
+    if (!gwId || !currentModeData) return;
+    
+    setHistory((prev: any) => {
+      const gwHistory = prev[gwId] || { safe: null, aggressive: null, value: null };
+      return {
+        ...prev,
+        [gwId]: {
+          ...gwHistory,
+          [riskMode]: {
+            ids: currentModeData.startingXI.map(p => p.id),
+            xP: currentModeData.expectedPoints,
+            captainId: currentModeData.captain?.id,
+            timestamp: Date.now()
+          }
+        }
+      };
+    });
+  };
+
+  const fetchLivePoints = async (gwId: number) => {
+    try {
+      const res = await axios.get(`/api/live/${gwId}`);
+      return res.data.elements; // Array of { id, stats: { total_points } }
+    } catch (err) {
+      console.error("Live points fetch error:", err);
+      return null;
+    }
   };
 
   const syncTeam = async () => {
@@ -68,6 +106,9 @@ export const useFPLData = (riskMode: 'safe' | 'aggressive' | 'value') => {
     syncing,
     syncTeam,
     formation,
-    refresh: fetchRecommendations
+    refresh: fetchRecommendations,
+    history,
+    takeSnapshot,
+    fetchLivePoints
   };
 };

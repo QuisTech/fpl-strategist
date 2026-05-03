@@ -1,0 +1,124 @@
+import { useState, useEffect } from 'react';
+import { cn } from '../lib/utils';
+import { TrendingUp, Award, Clock } from 'lucide-react';
+
+interface PerformanceViewProps {
+  history: any;
+  fetchLivePoints: (gwId: number) => Promise<any>;
+}
+
+export const PerformanceView = ({ history, fetchLivePoints }: PerformanceViewProps) => {
+  const [actualScores, setActualScores] = useState<Record<number, Record<number, number>>>({});
+  const [loading, setLoading] = useState<Record<number, boolean>>({});
+
+  const gws = Object.keys(history).map(Number).sort((a, b) => b - a);
+
+  const calculateActual = (gwId: number, playerIds: number[], captainId: number) => {
+    if (!actualScores[gwId]) return 0;
+    let total = 0;
+    playerIds.forEach(id => {
+      const pData = actualScores[gwId][id];
+      if (pData !== undefined) {
+        total += pData;
+        if (id === captainId) total += pData; // Captain gets double
+      }
+    });
+    return total;
+  };
+
+  const refreshActuals = async (gwId: number) => {
+    setLoading(prev => ({ ...prev, [gwId]: true }));
+    const elements = await fetchLivePoints(gwId);
+    if (elements) {
+      const scores: Record<number, number> = {};
+      elements.forEach((el: any) => {
+        scores[el.id] = el.stats.total_points;
+      });
+      setActualScores(prev => ({ ...prev, [gwId]: scores }));
+    }
+    setLoading(prev => ({ ...prev, [gwId]: false }));
+  };
+
+  if (gws.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <Clock className="w-12 h-12 text-slate-700 mb-4" />
+        <p className="text-slate-400 font-mono text-sm tracking-widest uppercase">No history snapshots yet.</p>
+        <p className="text-slate-600 text-[10px] mt-2 max-w-[250px]">
+          Snapshots are taken when you sync or analyze a gameweek. Start optimizing to build your history!
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 overflow-y-auto pr-2 custom-scrollbar">
+      {gws.map(gwId => {
+        const modes = history[gwId];
+        return (
+          <div key={gwId} className="bg-slate-950/40 border border-fpl-border rounded-2xl p-5">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-sm font-black text-white flex items-center gap-2">
+                <Award className="w-4 h-4 text-fpl-green" />
+                GAMEWEEK {gwId} PERFORMANCE
+              </h3>
+              <button 
+                onClick={() => refreshActuals(gwId)}
+                disabled={loading[gwId]}
+                className="text-[9px] font-black uppercase tracking-widest bg-fpl-purple px-3 py-1 rounded-lg hover:bg-fpl-purple/80 transition-colors disabled:opacity-50"
+              >
+                {loading[gwId] ? 'FETCHING...' : 'REFRESH ACTUALS'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              {(['safe', 'aggressive', 'value'] as const).map(mode => {
+                const data = modes[mode];
+                if (!data) return null;
+                
+                const actual = calculateActual(gwId, data.ids, data.captainId);
+                const diff = actual - data.xP;
+
+                return (
+                  <div key={mode} className="bg-card-bg border border-fpl-border rounded-xl p-4">
+                    <p className={cn(
+                      "text-[9px] font-black uppercase tracking-widest mb-3",
+                      mode === 'aggressive' ? "text-orange-400" : 
+                      mode === 'value' ? "text-cyan-400" : 
+                      "text-fpl-green"
+                    )}>{mode}</p>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-[8px] text-slate-500 uppercase font-medium">Expected</p>
+                        <p className="text-lg font-black text-white">{data.xP.toFixed(1)} <span className="text-[10px] font-normal text-slate-500">xP</span></p>
+                      </div>
+                      
+                      <div>
+                        <p className="text-[8px] text-slate-500 uppercase font-medium">Actual Result</p>
+                        <p className="text-lg font-black text-white">
+                          {actualScores[gwId] ? actual.toFixed(0) : '--'}
+                          <span className="text-[10px] font-normal text-slate-500 ml-1">pts</span>
+                        </p>
+                      </div>
+
+                      {actualScores[gwId] && (
+                        <div className={cn(
+                          "flex items-center gap-1 text-[10px] font-black",
+                          diff >= 0 ? "text-fpl-green" : "text-fpl-pink"
+                        )}>
+                          <TrendingUp className={cn("w-3 h-3", diff < 0 && "rotate-180")} />
+                          {diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1)} vs xP
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};

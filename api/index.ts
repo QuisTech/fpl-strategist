@@ -302,6 +302,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(result);
     }
 
+    if (url.includes('/api/live')) {
+      const eventId = url.split('/').pop()?.split('?')[0];
+      if (!eventId) return res.status(400).json({ error: "Missing Event ID" });
+      const liveRes = await axios.get(`${FPL_BASE_URL}/event/${eventId}/live/`, { headers: (FPLService as any).getHeaders() });
+      return res.status(200).json(liveRes.data);
+    }
+
     if (url.includes('/api/ping')) {
       return res.status(200).json({ status: "ok", message: "Grand Cru Engine Online" });
     }

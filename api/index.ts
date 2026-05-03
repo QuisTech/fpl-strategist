@@ -223,18 +223,25 @@ export class FPLService {
     return transfers.sort((a, b) => b.scoreJump - a.scoreJump).slice(0, 5);
   }
 
-  static generateChipAdvice(squad: ScoredPlayer[]): ChipAdvice[] {
+  static generateChipAdvice(squad: ScoredPlayer[], riskMode: string): ChipAdvice[] {
     const avgScore = squad.reduce((sum, p) => sum + (p.score || 0), 0) / (squad.length || 1);
+    const topPlayer = [...squad].sort((a, b) => (b.score || 0) - (a.score || 0))[0];
+    const isRisky = riskMode === 'aggressive';
+
     return [
       {
         chip: "Wildcard",
-        recommendation: avgScore < 4.0 ? "STRONG BUY" : "HOLD",
-        reason: avgScore < 4.0 ? "Your squad's average expected points are low. Time for an overhaul." : "Your squad has solid projected points. Save it."
+        recommendation: (isRisky && avgScore < 5.0) || avgScore < 4.0 ? "STRONG BUY" : "HOLD",
+        reason: isRisky && avgScore < 5.0 
+          ? "Strategic Overhaul: Your squad is falling behind the differential curve. Wildcard to attack the leaderboard."
+          : "Your squad has solid projected points. Save it."
       },
       {
         chip: "Free Hit",
-        recommendation: "HOLD",
-        reason: "Save your Free Hit for upcoming Blank or Double Gameweeks."
+        recommendation: isRisky && avgScore < 4.5 ? "STRONG BUY" : "HOLD",
+        reason: isRisky && avgScore < 4.5 
+          ? "One-Week Strike: Use your Free Hit to target specific high-upside matchups while keeping your core team intact."
+          : "Save your Free Hit for upcoming Blank or Double Gameweeks."
       },
       {
         chip: "Bench Boost",
@@ -243,8 +250,10 @@ export class FPLService {
       },
       {
         chip: "Triple Captain",
-        recommendation: "HOLD",
-        reason: "Save your Triple Captain for a premium asset with a highly favorable Double Gameweek."
+        recommendation: isRisky && topPlayer && topPlayer.score > 12 && topPlayer.selected_by_percent && parseFloat(topPlayer.selected_by_percent) < 10 ? "STRONG BUY" : "HOLD",
+        reason: isRisky && topPlayer && topPlayer.score > 12 && topPlayer.selected_by_percent && parseFloat(topPlayer.selected_by_percent) < 10
+          ? `High-Risk Gamble: ${topPlayer.web_name} is an elite differential with a massive ceiling this week. Go for the kill.`
+          : "Save your Triple Captain for a premium asset with a highly favorable Double Gameweek."
       }
     ];
   }
@@ -273,10 +282,13 @@ export class FPLService {
       ...recommendations.topPicks.fwd
     ];
 
+    const transfers = this.generateTransfers(myPicks, candidates);
+    const chips = this.generateChipAdvice(myPicks, riskMode);
+
     return {
       squad: myPicks,
-      transfers: this.generateTransfers(myPicks, candidates),
-      chips: this.generateChipAdvice(myPicks)
+      transfers,
+      chips
     };
   }
 }

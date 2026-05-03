@@ -76,8 +76,10 @@ export const PerformanceView = ({ history, fetchLivePoints }: PerformanceViewPro
                 const data = modes[mode];
                 if (!data) return null;
                 
+                const normalizedXP = data.xP / 15;
                 const actual = calculateActual(gwId, data.ids, data.captainId);
-                const diff = actual - data.xP;
+                const diff = actual - normalizedXP;
+                const hasStarted = actual > 0;
 
                 return (
                   <div key={mode} className="bg-card-bg border border-fpl-border rounded-xl p-4">
@@ -91,7 +93,7 @@ export const PerformanceView = ({ history, fetchLivePoints }: PerformanceViewPro
                     <div className="space-y-4">
                       <div>
                         <p className="text-[8px] text-slate-500 uppercase font-medium">Expected</p>
-                        <p className="text-lg font-black text-white">{data.xP.toFixed(1)} <span className="text-[10px] font-normal text-slate-500">xP</span></p>
+                        <p className="text-lg font-black text-white">{normalizedXP.toFixed(1)} <span className="text-[10px] font-normal text-slate-500">xP</span></p>
                       </div>
                       
                       <div>
@@ -102,7 +104,7 @@ export const PerformanceView = ({ history, fetchLivePoints }: PerformanceViewPro
                         </p>
                       </div>
 
-                      {actualScores[gwId] && (
+                      {hasStarted && (
                         <div className={cn(
                           "flex items-center gap-1 text-[10px] font-black",
                           diff >= 0 ? "text-fpl-green" : "text-fpl-pink"

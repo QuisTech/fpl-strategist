@@ -201,6 +201,7 @@ export class FPLService {
         mid: scored.filter(p => p.position === "MID").sort(sortByScore).slice(0, 5),
         fwd: scored.filter(p => p.position === "FWD").sort(sortByScore).slice(0, 5)
       },
+      nextEventId,
       lastUpdated: Date.now()
     };
   }

@@ -72,6 +72,7 @@ export interface RecommendationResponse {
     mid: ScoredPlayer[];
     fwd: ScoredPlayer[];
   };
+  nextEventId: number;
   lastUpdated: number;
 }
 

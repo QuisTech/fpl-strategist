@@ -208,10 +208,12 @@ export class FPLService {
 
   static generateTransfers(squad: ScoredPlayer[], candidates: ScoredPlayer[]): TransferRecommendation[] {
     const transfers: TransferRecommendation[] = [];
+    const squadIds = new Set(squad.map(p => p.id));
+
     squad.forEach(outPlayer => {
       const betterOptions = candidates.filter(p => 
         p.position === outPlayer.position && 
-        p.id !== outPlayer.id &&
+        !squadIds.has(p.id) && // Only recommend players NOT already in squad
         p.now_cost <= outPlayer.now_cost &&
         (p.score || 0) > (outPlayer.score || 0) + 0.5
       ).sort((a, b) => (b.score || 0) - (a.score || 0));

@@ -31,6 +31,13 @@ export const PerformanceView = ({ history, fetchLivePoints }: PerformanceViewPro
     return total;
   };
 
+  const [expandedMode, setExpandedMode] = useState<string | null>(null);
+
+  const toggleExpand = (gwId: number, mode: string) => {
+    const key = `${gwId}-${mode}`;
+    setExpandedMode(expandedMode === key ? null : key);
+  };
+
   const refreshActuals = async (gwId: number) => {
     setLoading(prev => ({ ...prev, [gwId]: true }));
     const elements = await fetchLivePoints(gwId);

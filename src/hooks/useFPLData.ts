@@ -51,7 +51,12 @@ export const useFPLData = (riskMode: 'safe' | 'aggressive' | 'value') => {
     newHistory[gwId] = {
       ...gwHistory,
       [mode]: {
-        ids: currentModeData.startingXI.map(p => p.id),
+        players: currentModeData.startingXI.map(p => ({
+          id: p.id,
+          web_name: p.web_name,
+          score: p.score,
+          position: p.position
+        })),
         xP: currentModeData.expectedPoints,
         captainId: currentModeData.captain?.id,
         timestamp: Date.now()
@@ -60,7 +65,7 @@ export const useFPLData = (riskMode: 'safe' | 'aggressive' | 'value') => {
 
     setHistory(newHistory);
     localStorage.setItem('fpl_optimizer_history', JSON.stringify(newHistory));
-    console.log(`[Snapshot] Saved GW${gwId} [${mode}]`, newHistory[gwId]);
+    console.log(`[Snapshot] Saved GW${gwId} [${mode}] with ${newHistory[gwId][mode].players.length} players`);
     return true;
   };
 

@@ -91,38 +91,78 @@ export class FPLService {
     return result;
   }
 
-  static calculatePlayerScore(player: FPLPlayer, fixtures: FPLFixture[], nextEventId: number, riskMode: string): number {
-    let score = player.total_points / (player.now_cost / 10);
-    const form = parseFloat(player.form) || 0;
-    score += form * 2;
-    
+  static calculatePlayerScore(player: FPLPlayer, teams: FPLTeam[], fixtures: FPLFixture[], nextEventId: number, riskMode: string): number {
+    const evWeight = 0.5;
+    const formWeight = 0.3;
+    const ictWeight = 0.2;
+
+    // 1. Base EV from underlying stats (season cumulative - quality signal)
     const xG = parseFloat(player.expected_goals) || 0;
     const xA = parseFloat(player.expected_assists) || 0;
-    score += (xG * 5) + (xA * 3);
+    
+    // Calculate raw "Attacking Potential" based on FPL points rules
+    let attackingPotential = 0;
+    if (player.element_type === 4) attackingPotential = (xG * 4) + (xA * 3);      // FWD
+    else if (player.element_type === 3) attackingPotential = (xG * 5) + (xA * 3); // MID
+    else attackingPotential = (xG * 6) + (xA * 3);                                // DEF/GKP
 
-    const upcoming = fixtures.filter(f => f.event >= nextEventId && f.event < nextEventId + 3)
-      .filter(f => f.team_h === player.team || f.team_a === player.team);
+    // 2. Form & ICT (Trend Analysis)
+    const form = parseFloat(player.form) || 0;
+    const ict = (parseFloat(player.ict_index) || 0) / 10; // Normalized
 
-    let difficultyMultiplier = 1.0;
-    upcoming.forEach(f => {
-      const fdr = f.team_h === player.team ? f.team_h_difficulty : f.team_a_difficulty;
-      difficultyMultiplier *= (1 + (3 - fdr) * 0.1);
-    });
-    score *= difficultyMultiplier;
+    // 3. Fixture Adjustments (3-GW Horizon)
+    const playerTeamId = player.team;
+    const nextGwFixtures = fixtures.filter(f => f.event === nextEventId && (f.team_h === playerTeamId || f.team_a === playerTeamId));
+    const followOnFixtures = fixtures.filter(f => f.event > nextEventId && (f.team_h === playerTeamId || f.team_a === playerTeamId)).slice(0, 2);
+    
+    if (nextGwFixtures.length === 0) return 0; // Blank GW Penalty
 
-    if (riskMode !== 'value') {
-      if (riskMode === 'aggressive' && player.selected_by_percent && parseFloat(player.selected_by_percent) < 5) {
-        score *= 1.25;
+    const getFdrScore = (f: FPLFixture) => {
+      const isHome = f.team_h === playerTeamId;
+      const difficulty = isHome ? f.team_h_difficulty : f.team_a_difficulty;
+      return (5 - difficulty + 1); // 1 (hardest) to 5 (easiest)
+    };
+
+    const nextGwMultiplier = nextGwFixtures.reduce((acc, f) => acc + getFdrScore(f), 0) * 1.25;
+    const followOnMultiplier = followOnFixtures.reduce((acc, f) => acc + getFdrScore(f), 0) / 2;
+    const fixtureFactor = (nextGwMultiplier + followOnMultiplier) / 2;
+
+    // 4. Combined weighted score
+    let baseScore = (attackingPotential * evWeight) + (form * formWeight) + (ict * ictWeight);
+    let totalScore = baseScore * (fixtureFactor / 3); // Scale by fixtures
+
+    // 5. Risk & Ownership (Differential Hunting)
+    const ownership = parseFloat(player.selected_by_percent) || 0;
+    if (riskMode === 'safe') {
+      totalScore += (ownership / 100) * 1.5;
+    } else if (riskMode === 'aggressive') {
+      if (ownership < 15) {
+        // Reward differentials more aggressively if they have high underlying EV
+        totalScore *= 1.35;
       }
-
-      // Premium player protection (captaincy value)
-      // Elite assets are worth more than their PPM suggests because you captain them
-      const costInMillions = player.now_cost / 10;
-      if (costInMillions >= 10.0) score *= 1.15;
-      else if (costInMillions >= 8.0) score *= 1.08;
     }
 
-    return score;
+    // 6. Availability Check
+    const chance = player.chance_of_playing_next_round ?? 100;
+    totalScore *= (chance / 100);
+
+    return Math.max(0, totalScore);
+  }
+
+  static getNextFixtures(playerTeamId: number, teams: FPLTeam[], fixtures: FPLFixture[]) {
+    return fixtures
+      .filter(f => !f.finished && (f.team_h === playerTeamId || f.team_a === playerTeamId))
+      .slice(0, 3)
+      .map(f => {
+        const isHome = f.team_h === playerTeamId;
+        const opponentId = isHome ? f.team_a : f.team_h;
+        const opponent = teams.find(t => t.id === opponentId)?.short_name || "UNK";
+        return {
+          opponent,
+          difficulty: isHome ? f.team_h_difficulty : f.team_a_difficulty,
+          is_home: isHome
+        };
+      });
   }
 
   static mapToScoredPlayer(p: FPLPlayer, teams: FPLTeam[], fixtures: FPLFixture[], nextEventId: number, riskMode: string): ScoredPlayer {
@@ -135,9 +175,9 @@ export class FPLService {
       position,
       team_name: team?.name || "Unknown",
       team_short_name: team?.short_name || "UNK",
-      score: this.calculatePlayerScore(p, fixtures, nextEventId, riskMode),
+      score: this.calculatePlayerScore(p, teams, fixtures, nextEventId, riskMode),
       ppm: (p.total_points || 0) / (p.now_cost / 10),
-      next_fixtures: [],
+      next_fixtures: this.getNextFixtures(p.team, teams, fixtures),
       isCaptain: false,
       isViceCaptain: false
     };

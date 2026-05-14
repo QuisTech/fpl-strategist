@@ -13,10 +13,15 @@ export const PerformanceView = ({ history, fetchLivePoints }: PerformanceViewPro
 
   const gws = Object.keys(history).map(Number).sort((a, b) => b - a);
 
-  const calculateActual = (gwId: number, playerIds: number[], captainId: number) => {
+  const calculateActual = (gwId: number, snapshot: any) => {
     if (!actualScores[gwId]) return 0;
     let total = 0;
-    playerIds.forEach(id => {
+    
+    // Support both old 'ids' format and new 'players' metadata format
+    const playerIds = snapshot.players ? snapshot.players.map((p: any) => p.id) : (snapshot.ids || []);
+    const captainId = snapshot.captainId;
+
+    playerIds.forEach((id: number) => {
       const pData = actualScores[gwId][id];
       if (pData !== undefined) {
         total += pData;
